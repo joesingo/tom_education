@@ -1,12 +1,9 @@
-"""
-TODO:
-error message for creating template with same name
-"""
 from datetime import datetime
 import json
 from unittest.mock import patch
 
 from django import forms
+from django.db import transaction
 from django.urls import reverse
 from django.test import TestCase, override_settings
 from django.contrib.auth.models import User
@@ -119,6 +116,34 @@ class ObservationTemplateTestCase(TestCase):
         self.assertEqual(template.target, self.target)
         self.assertEqual(template.facility, self.facility)
         self.assertEqual(json.loads(template.fields), fields)
+
+    def test_invalid_template_name(self, mock):
+        template = ObservationTemplate.objects.create(
+            name="cool-template-name",
+            target=self.target,
+            facility=self.facility,
+            fields='...'
+        )
+
+        # The expected IntegrityError will break this test's DB transaction,
+        # which prevents DB operations later on. Use atomic() to ensure changes
+        # are rolled back
+        with transaction.atomic():
+            response = self.client.post(self.create_url, {
+                'test_input': 'cool-template-name',
+                'extra_field': 'blah',
+                'target_id': self.target.pk,
+                'facility': self.facility,
+                'create-template': 'yep'
+            })
+        self.assertEqual(response.status_code, 200)
+
+        err_msg = 'Template name "cool-template-name" already in use'
+        self.assertIn(err_msg, response.context['form'].errors['__all__'])
+
+        # Double check that no template was created
+        temp_count = ObservationTemplate.objects.all().count()
+        self.assertEqual(temp_count, 1)
 
     @patch('tom_education.models.datetime')
     def test_instantiate_template(self, dt_mock, _):

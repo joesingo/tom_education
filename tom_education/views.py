@@ -2,6 +2,7 @@ from datetime import datetime
 import json
 
 from django.core.exceptions import PermissionDenied
+from django.db.utils import IntegrityError
 from django.utils.http import urlencode
 from django.shortcuts import redirect, reverse
 from tom_observations.views import ObservationCreateView
@@ -73,12 +74,18 @@ class TemplatedObservationCreateView(ObservationCreateView):
                 raise PermissionDenied()
 
             # Create new template
-            template = ObservationTemplate.objects.create(
-                name=form.cleaned_data.get(self.get_identifier_field()),  # TODO: deal with None
-                target=self.get_target(),
-                facility=self.get_facility(),
-                fields=self.serialize_fields(form)
-            )
+            name = form.cleaned_data.get(self.get_identifier_field())  # TODO: deal with None
+            try:
+                template = ObservationTemplate.objects.create(
+                    name=name,
+                    target=self.get_target(),
+                    facility=self.get_facility(),
+                    fields=self.serialize_fields(form)
+                )
+            except IntegrityError:
+                form.add_error(None, 'Template name "{}" already in use'.format(name))
+                return self.form_invalid(form)
+
             path = template.get_create_url(self.instantiate_template_url())
             return redirect(path)
 
