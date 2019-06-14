@@ -1,3 +1,4 @@
+from datetime import datetime
 from urllib.parse import urlparse, parse_qs, urlunparse
 
 from django.db import models
@@ -29,3 +30,12 @@ class ObservationTemplate(models.Model):
         parts = list(parsed_url)
         parts[4] = urlencode(params)
         return urlunparse(parts)
+
+    def get_identifier(self):
+        """
+        Return an identifier for an instantiation of this template, based on
+        the template name and current date and time
+        """
+        now = datetime.now()
+        fmt = '%Y-%m-%d-%H%M%S'
+        return "{}-{}".format(self.name, now.strftime(fmt))

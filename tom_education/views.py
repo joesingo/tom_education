@@ -56,6 +56,8 @@ class TemplatedObservationCreateView(ObservationCreateView):
             ).get(pk=template_id)
 
             initial.update(json.loads(template.fields))
+            # Set identifier field to something unique based on the template name
+            initial[self.get_identifier_field()] = template.get_identifier()
 
             # Dates need to be converted to just YYYY-MM-DD to display in the
             # widget properly
