@@ -1,8 +1,16 @@
-from crispy_forms.layout import ButtonHolder, Div, Layout, Submit, HTML
+from crispy_forms.layout import Button, Layout, HTML
 
 from tom_observations.facilities.lco import LCOObservationForm
 
 from tom_education.models import ObservationTemplate
+
+
+class SecondarySubmit(Button):
+    """
+    Button that has the appearance of a regular button, but will submit a form.
+    Used to differentiate between primary and secondary submit buttons
+    """
+    input_type = 'submit'
 
 
 def make_templated_form(base_class):
@@ -24,7 +32,7 @@ def make_templated_form(base_class):
             super().__init__(*args, **kwargs)
 
             if show_create:
-                self.helper.add_input(Submit(*self.new_template_action))
+                self.helper.add_input(SecondarySubmit(*self.new_template_action))
 
             # Insert template links after common layout
             if self.helper.layout:
