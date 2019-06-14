@@ -5,31 +5,6 @@ from tom_observations.facilities.lco import LCOObservationForm
 from tom_education.models import ObservationTemplate
 
 
-# class TemplatedLCOObservationForm(LCOObservationForm):
-#     # Param name for submit button in form, and text for the button
-#     new_template_action = ('create-template', 'Create new template')
-
-#     def __init__(self, *args, **kwargs):
-#         super().__init__(*args, **kwargs)
-#         self.helper.add_input(Submit(*self.new_template_action))
-
-#     def layout(self):
-#         """
-#         Add buttons at top of form to instantiate fields from a template
-#         """
-#         layout = super().layout()
-
-#         templates = ObservationTemplate.objects.filter(target__pk=self.initial['target_id'])
-#         if templates:
-#             links = []
-#             for template in templates:
-#                 links.append('<a href="{url}">{text}</a>'.format(
-#                     url=template.get_create_url(self.initial['instantiate_template_url']),
-#                     text=template.name
-#                 ))
-#             return Layout(HTML('Create from template: '), HTML(', '.join(links)), layout)
-#         return layout
-
 def make_templated_form(base_class):
     """
     Return a sub-class of `base_class` which additionally provides links to
