@@ -8,8 +8,10 @@ Plugin for the TOM Toolkit.
 
 1. Clone and install this package with `pip`
 
-    git clone <this repo>
-    pip install tom_education
+```
+git clone <this repo>
+pip install tom_education
+```
 
 1. Add `tom_education` to `INSTALLED_APPS` in `settings.py`
 
@@ -18,17 +20,21 @@ Plugin for the TOM Toolkit.
 
 1. Include `tom_education` and `tom_common` in `urls.py`
 
-    from django.urls import path, include
+```python
+from django.urls import path, include
 
-    urlpatterns = [
-        ...
-        path('', include('tom_education.urls')),
-        path('', include('tom_common.urls')),
-    ]
+urlpatterns = [
+    ...
+    path('', include('tom_education.urls')),
+    path('', include('tom_common.urls')),
+]
+```
 
 1. Run migrations
 
-    python manage.py migrate
+```
+python manage.py migrate
+```
 
 ## TODO
 
