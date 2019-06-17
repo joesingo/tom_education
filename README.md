@@ -1,6 +1,11 @@
 # tom_education
 
-Plugin for the TOM Toolkit.
+Plugin for the TOM Toolkit, adding the following features.
+
+* **Templated observation forms:** when creating a new observation, the form
+  fields can be saved as a template. Future observations can then be created
+  from the template with all fields identical except for 'group ID', which has
+  the date appended to it.
 
 ## Installation
 
