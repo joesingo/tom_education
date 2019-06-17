@@ -35,7 +35,3 @@ urlpatterns = [
 ```
 python manage.py migrate
 ```
-
-## TODO
-
-* Add migrations
