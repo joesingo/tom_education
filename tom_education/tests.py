@@ -24,8 +24,20 @@ class FakeTemplateFacility(FakeFacility):
     form = FakeTemplateFacilityForm
 
 
-@override_settings(TOM_FACILITY_CLASSES=['tom_education.tests.FakeTemplateFacility'])
+class AnotherFakeFacility(FakeFacility):
+    name = 'AnotherFake'
+    form = FakeTemplateFacilityForm
+
+
+FAKE_FACILITIES = [
+    'tom_education.tests.FakeTemplateFacility',
+    'tom_education.tests.AnotherFakeFacility',
+]
+
+
+@override_settings(TOM_FACILITY_CLASSES=FAKE_FACILITIES)
 @patch('tom_education.views.TemplatedObservationCreateView.get_identifier_field', return_value='test_input')
+@patch('tom_education.views.TemplatedObservationCreateView.supported_facilities', ('TemplateFake',))
 class ObservationTemplateTestCase(TestCase):
     facility = 'TemplateFake'
 
@@ -35,14 +47,18 @@ class ObservationTemplateTestCase(TestCase):
         self.user = User.objects.create(username='someuser', password='somepass', is_staff=True)
         self.non_staff = User.objects.create(username='another', password='aaa')
         self.target = Target.objects.create(identifier='mytarget', name='my target')
-        self.create_url = reverse('tom_education:create_obs', kwargs={'facility': self.facility})
 
     def setUp(self):
         super().setUp()
         self.client.force_login(self.user)
 
-    def get_url(self, target):
-        return '{}?target_id={}'.format(self.create_url, target.pk)
+    def get_base_url(self, facility=None):
+        # Return URL for create form without target ID
+        facility = facility or self.facility
+        return reverse('tom_education:create_obs', kwargs={'facility': facility})
+
+    def get_url(self, target, facility=None):
+        return '{}?target_id={}'.format(self.get_base_url(facility), target.pk)
 
     def test_existing_templates_shown(self, mock):
         template = ObservationTemplate.objects.create(
@@ -78,12 +94,18 @@ class ObservationTemplateTestCase(TestCase):
         self.assertIn(b'create-template', response.content)
         self.assertIn(b'Create new template', response.content)
 
-        # Should not be present as non-staff
-        self.client.force_login(self.non_staff)
-        response2 = self.client.get(self.get_url(self.target))
+        # Should not be present if facility not supported
+        response2 = self.client.get(self.get_url(self.target, facility='AnotherFake'))
         self.assertEqual(response2.status_code, 200)
         self.assertNotIn(b'create-template', response2.content)
         self.assertNotIn(b'Create new template', response2.content)
+
+        # Should not be present as non-staff
+        self.client.force_login(self.non_staff)
+        response3 = self.client.get(self.get_url(self.target))
+        self.assertEqual(response3.status_code, 200)
+        self.assertNotIn(b'create-template', response3.content)
+        self.assertNotIn(b'Create new template', response3.content)
 
     def test_create_template(self, mock):
         self.assertEqual(ObservationTemplate.objects.all().count(), 0)
@@ -99,14 +121,19 @@ class ObservationTemplateTestCase(TestCase):
 
         # Should not be able to POST as non-staff user
         self.client.force_login(self.non_staff)
-        response = self.client.post(self.create_url, post_params)
+        response = self.client.post(self.get_base_url(), post_params)
         self.assertEqual(response.status_code, 403)
 
-        # Test as staff user
+        # Should not be able to POST if facility is not supported
         self.client.force_login(self.user)
-        response2 = self.client.post(self.create_url, post_params)
-        self.assertEqual(response2.status_code, 302)
-        self.assertEqual(response2.url, self.get_url(self.target) + '&template_id=1')
+        wrong_facility = dict(post_params, facility='AnotherFake')
+        response2 = self.client.post(self.get_base_url(facility='AnotherFake'), wrong_facility)
+        self.assertEqual(response2.status_code, 403)
+
+        # Should be able to create as staff user for a valid facility
+        response3 = self.client.post(self.get_base_url(), post_params)
+        self.assertEqual(response3.status_code, 302)
+        self.assertEqual(response3.url, self.get_url(self.target) + '&template_id=1')
 
         # ObservationTemplate object should have been created
         self.assertEqual(ObservationTemplate.objects.all().count(), 1)
@@ -129,7 +156,7 @@ class ObservationTemplateTestCase(TestCase):
         # which prevents DB operations later on. Use atomic() to ensure changes
         # are rolled back
         with transaction.atomic():
-            response = self.client.post(self.create_url, {
+            response = self.client.post(self.get_base_url(), {
                 'test_input': 'cool-template-name',
                 'extra_field': 'blah',
                 'target_id': self.target.pk,

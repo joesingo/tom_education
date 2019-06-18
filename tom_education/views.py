@@ -12,6 +12,7 @@ from tom_education.models import ObservationTemplate
 
 
 class TemplatedObservationCreateView(ObservationCreateView):
+    supported_facilities = ('LCO',)
 
     def get_form_class(self):
         return make_templated_form(super().get_form_class())
@@ -40,10 +41,18 @@ class TemplatedObservationCreateView(ObservationCreateView):
         base = reverse("tom_education:create_obs", kwargs={'facility': self.get_facility()})
         return base + '?' + urlencode({'target_id': self.get_target_id()})
 
+    def can_create_template(self):
+        """
+        Return True if the current user can create a template for the current
+        facility, and False otherwise
+        """
+        supported_facility = self.get_facility() in self.supported_facilities
+        return supported_facility and self.request.user.is_staff
+
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs['instantiate_template_url'] = self.instantiate_template_url()
-        kwargs['show_create'] = self.request.user.is_staff
+        kwargs['show_create'] = self.can_create_template()
         return kwargs
 
     def get_initial(self):
@@ -70,7 +79,7 @@ class TemplatedObservationCreateView(ObservationCreateView):
 
     def form_valid(self, form):
         if self.get_form_class().new_template_action[0] in form.data:
-            if not self.request.user.is_staff:
+            if not self.can_create_template():
                 raise PermissionDenied()
 
             # Create new template
