@@ -18,7 +18,20 @@ git clone <this repo>
 pip install tom_education
 ```
 
-3. Add `tom_education` to `INSTALLED_APPS` in `settings.py`.
+3. Add `tom_education` to `INSTALLED_APPS` in `settings.py` (make sure it
+  appears *before* the other `tom_*` apps):
+
+```python
+INSTALLED_APPS = [
+    ...
+    'tom_education',
+    'tom_targets',
+    'tom_alerts',
+    'tom_catalogs',
+    'tom_observations',
+    'tom_dataproducts',
+]
+```
 
 4. Set `ROOT_URLCONF` in `settings.py` to `mytom.urls`, where `mytom` is the
    name of the project created in step 1.
