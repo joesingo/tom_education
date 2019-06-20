@@ -1,6 +1,5 @@
+from django import forms
 from crispy_forms.layout import Button, Layout, HTML
-
-from tom_observations.facilities.lco import LCOObservationForm
 
 from tom_education.models import ObservationTemplate
 
@@ -58,3 +57,18 @@ def make_templated_form(base_class):
                 return Layout(HTML('Create from template: '), HTML(', '.join(links)))
             return Layout()
     return F
+
+
+class TimelapseCreateForm(forms.Form):
+    """
+    Form for creating a timelapse from a sequence of DataProducts containing
+    images
+    """
+    # Note: fields are added dynamically based on the target passed to the
+    # constructor
+    def __init__(self, *args, **kwargs):
+        target = kwargs.pop('target')
+        super().__init__(*args, **kwargs)
+
+        for dp in target.dataproduct_set.all():
+            self.fields[dp.product_id] = forms.fields.BooleanField(required=False)

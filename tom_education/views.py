@@ -4,11 +4,15 @@ import json
 from django.core.exceptions import PermissionDenied
 from django.db.utils import IntegrityError
 from django.utils.http import urlencode
+from django.views.generic.edit import FormMixin
 from django.shortcuts import redirect, reverse
+from tom_dataproducts.models import DataProduct
 from tom_observations.views import ObservationCreateView
+from tom_targets.views import TargetDetailView
 
-from tom_education.forms import make_templated_form
+from tom_education.forms import make_templated_form, TimelapseCreateForm
 from tom_education.models import ObservationTemplate
+from tom_education.timelapse import Timelapse
 
 
 class TemplatedObservationCreateView(ObservationCreateView):
@@ -98,4 +102,43 @@ class TemplatedObservationCreateView(ObservationCreateView):
             path = template.get_create_url(self.instantiate_template_url())
             return redirect(path)
 
+        return super().form_valid(form)
+
+
+class TimelapseTargetDetailView(FormMixin, TargetDetailView):
+    """
+    Extend the target detail view to add a form to create a timelapse from data
+    products
+    """
+    form_class = TimelapseCreateForm
+
+    def get_success_url(self):
+        return reverse('tom_targets:detail', kwargs={'pk': self.get_object().pk})
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['target'] = self.get_object()
+        return kwargs
+
+    def get_context_data(self, *args, **kwargs):
+        self.object = self.get_object()
+        context = super().get_context_data(*args, **kwargs)
+        context['timelapse_form'] = self.get_form()
+        return context
+
+    def post(self, _request, *args, **kwargs):
+        form = self.get_form()
+        if form.is_valid():
+            return self.form_valid(form)
+        return self.form_invalid(form)
+
+    def form_valid(self, form):
+        # Construct set of data products that were selected
+        products = {
+            DataProduct.objects.get(product_id=pid)
+            for pid, checked in form.cleaned_data.items() if checked
+        }
+        tl = Timelapse(products)
+        tl.create_dataproduct()
+        # TODO: add message to indicate timelapse was created successfully
         return super().form_valid(form)

@@ -1,16 +1,26 @@
 from datetime import datetime
+from io import BytesIO
 import json
 from unittest.mock import patch
 
+from astropy.io import fits
 from django import forms
+from django.core.files.uploadedfile import File
 from django.db import transaction
 from django.urls import reverse
 from django.test import TestCase, override_settings
 from django.contrib.auth.models import User
+from guardian.shortcuts import assign_perm
+import imageio
+import numpy as np
+from tom_dataproducts.models import DataProduct, IMAGE_FILE
 from tom_targets.models import Target
+from tom_observations.tests.factories import TargetFactory, ObservingRecordFactory
 from tom_observations.tests.utils import FakeFacility, FakeFacilityForm
 
+from tom_education.forms import TimelapseCreateForm
 from tom_education.models import ObservationTemplate
+from tom_education.timelapse import Timelapse
 
 
 class FakeTemplateFacilityForm(FakeFacilityForm):
@@ -42,11 +52,11 @@ class ObservationTemplateTestCase(TestCase):
     facility = 'TemplateFake'
 
     @classmethod
-    def setUpClass(self):
+    def setUpClass(cls):
         super().setUpClass()
-        self.user = User.objects.create(username='someuser', password='somepass', is_staff=True)
-        self.non_staff = User.objects.create(username='another', password='aaa')
-        self.target = Target.objects.create(identifier='mytarget', name='my target')
+        cls.user = User.objects.create(username='someuser', password='somepass', is_staff=True)
+        cls.non_staff = User.objects.create(username='another', password='aaa')
+        cls.target = Target.objects.create(identifier='mytarget', name='my target')
 
     def setUp(self):
         super().setUp()
@@ -191,3 +201,164 @@ class ObservationTemplateTestCase(TestCase):
         initial = response.context['form'].initial
         self.assertEqual(initial['test_input'], 'mytemplate-2019-01-02-030405')
         self.assertEqual(initial['extra_field'], 'someextravalue')
+
+
+@override_settings(TOM_FACILITY_CLASSES=['tom_observations.tests.utils.FakeFacility'])
+class TimelapseTestCase(TestCase):
+    def setUp(self):
+        super().setUp()
+        self.user = User.objects.create_user(username='test', email='test@example.com')
+        self.client.force_login(self.user)
+        assign_perm('tom_targets.view_target', self.user, self.target)
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+
+        cls.target = TargetFactory.create()
+        cls.observation_record = ObservingRecordFactory.create(
+            target_id=cls.target.id,
+            facility=FakeFacility.name,
+            parameters='{}'
+        )
+
+        # Create some FITS image files and DataProducts from them
+        cls.prods = []
+
+        dates = [  # Note: dates are not in order
+            datetime(year=2019, month=1, day=2, hour=3, minute=4),
+            datetime(year=2019, month=1, day=2, hour=3, minute=5),
+            datetime(year=2019, month=1, day=2, hour=3, minute=7),
+            datetime(year=2019, month=1, day=2, hour=3, minute=6)
+        ]
+        # Create dummy image data. Make sure data is not constant to avoid
+        # warnings from fits2image
+        # TODO: consider using real fits files here...
+        cls.image_data = np.ones((500, 4), dtype=np.float)
+        cls.image_data[20, :] = np.array([10, 20, 30, 40])
+
+        for i, date in enumerate(dates):
+            primary_hdu = fits.PrimaryHDU()
+            primary_hdu.header['XTENSION'] = 'IMAGE'
+            primary_hdu.header['DATE-OBS'] = date.isoformat()
+            # Create COMPRESSED image HDU, since this is the data we will need
+            # to deal with
+            img = fits.hdu.compressed.CompImageHDU(cls.image_data)
+
+            hdul = fits.HDUList([primary_hdu, img])
+            buf = BytesIO()
+            hdul.writeto(buf)
+
+            product_id = 'test{}'.format(i)
+            prod = DataProduct.objects.create(
+                product_id=product_id,
+                target=cls.target,
+                observation_record=cls.observation_record,
+            )
+            prod.data.save(product_id, File(buf), save=True)
+            cls.prods.append(prod)
+
+    def assert_gif_data(self, data):
+        self.assertEqual(data.read(6), b'GIF89a')
+
+    @patch('tom_education.views.Timelapse.create_dataproduct')
+    @patch('tom_education.views.Timelapse.__init__', return_value=None)
+    def test_create_timelapse_form(self, init_mock, create_dp_mock):
+        """
+        Test the view and form, and check that the timelapse methods are called
+        with the correct arguments
+        """
+        # GET page and check form is in the context
+        url = reverse('tom_education:target_detail', kwargs={'pk': self.target.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('timelapse_form', response.context)
+        self.assertIsInstance(response.context['timelapse_form'], TimelapseCreateForm)
+
+        # POST form
+        response2 = self.client.post(url, {
+            'test0': 'on',
+            'test3': 'on',
+            'test2': 'on',
+        })
+        # Should be redirected to target detail
+        self.assertEqual(response2.status_code, 302)
+        self.assertEqual(response2.url, url)
+
+        # Check appropriate methods were called with correct arguments
+        init_mock.assert_called_once_with({self.prods[0], self.prods[2], self.prods[3]})
+        create_dp_mock.assert_called_once()
+
+        # TODO: check that other buttons (Feature, Delete, ...) on the page do
+        # not submit the timelapse form
+        # TODO: check message is shown to indicate timelapse created
+        # successfully
+        # TODO: check timelapse is shown on the page
+
+    def test_fits_file_sorting(self):
+        correct_order = [self.prods[0], self.prods[1], self.prods[3], self.prods[2]]
+        self.assertEqual(Timelapse.sort_products(self.prods), correct_order)
+
+    def test_different_obs_or_target(self):
+        """
+        Should not be able to create a timelapse for a list of data products
+        that are not all for the same observation and target
+        """
+        other_target = TargetFactory.create()
+        other_obs = ObservingRecordFactory.create(
+            target_id=other_target.id,
+            facility=FakeFacility.name,
+            parameters='{}'
+        )
+
+        other_target_prod = DataProduct.objects.create(
+            product_id='other_target',
+            target=other_target,
+            observation_record=self.observation_record,
+            data=self.prods[0].data.name
+        )
+        other_obs_prod = DataProduct.objects.create(
+            product_id='other_obs',
+            target=self.target,
+            observation_record=other_obs,
+            data=self.prods[0].data.name
+        )
+
+        with self.assertRaises(ValueError):
+            Timelapse([self.prods[0], self.prods[1], other_target_prod])
+        with self.assertRaises(ValueError):
+            Timelapse([self.prods[0], self.prods[1], other_obs_prod])
+
+    def test_create_gif(self):
+        tl = Timelapse(self.prods, fps=13)
+        buf = BytesIO()
+        tl.create(buf)
+        buf.seek(0)
+        self.assert_gif_data(buf)
+
+        # Check the number of frames is correct
+        buf.seek(0)
+        frames = imageio.mimread(buf)
+        self.assertEqual(len(frames), len(self.prods))
+        # Check the size of the first frame
+        self.assertEqual(frames[0].shape, self.image_data.shape)
+
+        # TODO: check the actual image data
+
+    def test_create_dataproduct(self):
+        tl = Timelapse(self.prods, fmt='gif')
+        pre_dp_count = DataProduct.objects.count()
+
+        prod = tl.create_dataproduct()
+        # Check product has been created successfully
+        self.assertIsInstance(prod, DataProduct)
+        post_dp_count = DataProduct.objects.count()
+        self.assertEqual(post_dp_count, pre_dp_count + 1)
+
+        # Check fields are correct
+        self.assertEqual(prod.target, self.target)
+        self.assertEqual(prod.observation_record, self.observation_record)
+        self.assertEqual(prod.tag, IMAGE_FILE[0])
+        self.assertTrue(prod.data.name.endswith('.gif'))
+        # Check the actual data file
+        self.assert_gif_data(prod.data.file)
