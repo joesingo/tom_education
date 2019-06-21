@@ -7,6 +7,5 @@ function selectAllProducts(reduced_only) {
     if (reduced_only) {
         selector += '.reduced';
     }
-    console.log(selector);
     $(selector).prop('checked', true);
 }
