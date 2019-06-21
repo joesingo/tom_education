@@ -1,7 +1,9 @@
 from datetime import datetime
 import json
+import os.path
 
 from django.core.exceptions import PermissionDenied
+from django.contrib import messages
 from django.db.utils import IntegrityError
 from django.utils.http import urlencode
 from django.views.generic.edit import FormMixin
@@ -139,6 +141,9 @@ class TimelapseTargetDetailView(FormMixin, TargetDetailView):
             for pid, checked in form.cleaned_data.items() if checked
         }
         tl = Timelapse(products)
-        tl.create_dataproduct()
-        # TODO: add message to indicate timelapse was created successfully
+        product = tl.create_dataproduct()
+        msg = 'Timelapse \'{}\' created successfully'.format(
+            os.path.basename(product.data.name)
+        )
+        messages.success(self.request, msg)
         return super().form_valid(form)

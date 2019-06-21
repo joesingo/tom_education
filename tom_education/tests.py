@@ -6,6 +6,7 @@ from unittest.mock import patch
 from astropy.io import fits
 from django import forms
 from django.core.files.uploadedfile import File
+from django.contrib.messages import SUCCESS
 from django.db import transaction
 from django.urls import reverse
 from django.test import TestCase, override_settings
@@ -268,6 +269,8 @@ class TimelapseTestCase(TestCase):
         Test the view and form, and check that the timelapse methods are called
         with the correct arguments
         """
+        create_dp_mock.return_value = self.prods[0]
+
         # GET page and check form is in the context
         url = reverse('tom_education:target_detail', kwargs={'pk': self.target.pk})
         response = self.client.get(url)
@@ -289,10 +292,17 @@ class TimelapseTestCase(TestCase):
         init_mock.assert_called_once_with({self.prods[0], self.prods[2], self.prods[3]})
         create_dp_mock.assert_called_once()
 
+        # Check a message is shown on next request to indicate success
+        response3 = self.client.get(url)
+        messages = list(response3.context['messages'])
+        self.assertTrue(len(messages) == 1)
+        msg = messages[0]
+        self.assertEqual(msg.level, SUCCESS)
+        self.assertTrue(msg.message.startswith('Timelapse'))
+        self.assertTrue(msg.message.endswith('created successfully'))
+
         # TODO: check that other buttons (Feature, Delete, ...) on the page do
         # not submit the timelapse form
-        # TODO: check message is shown to indicate timelapse created
-        # successfully
         # TODO: check timelapse is shown on the page
 
     def test_fits_file_sorting(self):
@@ -359,6 +369,7 @@ class TimelapseTestCase(TestCase):
         self.assertEqual(prod.target, self.target)
         self.assertEqual(prod.observation_record, self.observation_record)
         self.assertEqual(prod.tag, IMAGE_FILE[0])
+        self.assertTrue('timelapse' in prod.data.name)
         self.assertTrue(prod.data.name.endswith('.gif'))
         # Check the actual data file
         self.assert_gif_data(prod.data.file)
