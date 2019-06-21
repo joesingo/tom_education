@@ -10,6 +10,12 @@ import imageio
 from tom_dataproducts.models import DataProduct, IMAGE_FILE
 
 
+class DateFieldNotFoundError(Exception):
+    """
+    The FITS header to obtain observation date was not found
+    """
+
+
 class Timelapse:
     """
     Class to create an animated timelapse from a sequence of FITS image files
@@ -98,8 +104,10 @@ class Timelapse:
         """
         def sort_key(product):
             hdus = fits.open(product.data.path)
-            # TODO: handle field not found
-            dt_str = hdus[0].header[cls.fits_date_field]
+            try:
+                dt_str = hdus[0].header[cls.fits_date_field]
+            except KeyError:
+                raise DateFieldNotFoundError(product.data.name)
             return datetime.fromisoformat(dt_str)
 
         return sorted(products, key=sort_key)

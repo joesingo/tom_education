@@ -14,7 +14,7 @@ from tom_targets.views import TargetDetailView
 
 from tom_education.forms import make_templated_form, TimelapseCreateForm
 from tom_education.models import ObservationTemplate
-from tom_education.timelapse import Timelapse
+from tom_education.timelapse import Timelapse, DateFieldNotFoundError
 
 
 class TemplatedObservationCreateView(ObservationCreateView):
@@ -135,15 +135,21 @@ class TimelapseTargetDetailView(FormMixin, TargetDetailView):
         return self.form_invalid(form)
 
     def form_valid(self, form):
+        response = super().form_valid(form)
         # Construct set of data products that were selected
         products = {
             DataProduct.objects.get(product_id=pid)
             for pid, checked in form.cleaned_data.items() if checked
         }
-        tl = Timelapse(products)
+        try:
+            tl = Timelapse(products)
+        except DateFieldNotFoundError as ex:
+            messages.error(self.request, 'Could not find observation date in \'{}\''.format(ex))
+            return response
+
         product = tl.create_dataproduct()
         msg = 'Timelapse \'{}\' created successfully'.format(
             os.path.basename(product.data.name)
         )
         messages.success(self.request, msg)
-        return super().form_valid(form)
+        return response

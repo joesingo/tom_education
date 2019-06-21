@@ -6,7 +6,7 @@ from unittest.mock import patch
 from astropy.io import fits
 from django import forms
 from django.core.files.uploadedfile import File
-from django.contrib.messages import SUCCESS
+from django.contrib.messages import SUCCESS, ERROR
 from django.db import transaction
 from django.urls import reverse
 from django.test import TestCase, override_settings
@@ -376,3 +376,22 @@ class TimelapseTestCase(TestCase):
         self.assertTrue(prod.data.name.endswith('.gif'))
         # Check the actual data file
         self.assert_gif_data(prod.data.file)
+
+    @patch('tom_education.views.Timelapse.fits_date_field', new='hello')
+    def test_no_observation_date_view(self):
+        """
+        Check we get the expected error when a FITS file does not contain the
+        header for the date of the observation. This is achieved by patching
+        the field name and setting it to 'hello'
+        """
+        url = reverse('tom_education:target_detail', kwargs={'pk': self.target.pk})
+        response = self.client.post(url, {'test0': 'on'})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, url)
+
+        response2 = self.client.get(url)
+        messages = list(response2.context['messages'])
+        self.assertTrue(len(messages) == 1)
+        msg = messages[0]
+        self.assertEqual(msg.level, ERROR)
+        self.assertTrue(msg.message.startswith('Could not find observation date in'))
