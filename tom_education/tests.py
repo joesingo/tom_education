@@ -304,8 +304,6 @@ class TimelapseTestCase(TestCase):
         self.assertTrue(msg.message.startswith('Timelapse'))
         self.assertTrue(msg.message.endswith('created successfully'))
 
-        # TODO: check that other buttons (Feature, Delete, ...) on the page do
-        # not submit the timelapse form
         # TODO: check timelapse is shown on the page
 
     def test_fits_file_sorting(self):
