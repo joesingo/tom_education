@@ -98,6 +98,7 @@ class Timelapse:
         """
         def sort_key(product):
             hdus = fits.open(product.data.path)
+            # TODO: handle field not found
             dt_str = hdus[0].header[cls.fits_date_field]
             return datetime.fromisoformat(dt_str)
 

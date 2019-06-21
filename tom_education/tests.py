@@ -278,6 +278,9 @@ class TimelapseTestCase(TestCase):
         self.assertIn('timelapse_form', response.context)
         self.assertIsInstance(response.context['timelapse_form'], TimelapseCreateForm)
 
+        self.assertIn(b'Select all', response.content)
+        self.assertIn(b'Select reduced', response.content)
+
         # POST form
         response2 = self.client.post(url, {
             'test0': 'on',

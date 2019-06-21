@@ -1,11 +1,16 @@
 {% load bootstrap4 %}
+{% load static %}
 {% include 'tom_dataproducts/partials/js9_scripts.html' %}
+<script type='text/javascript' src='{% static 'tom_education/timelapse_form.js' %}'></script>
+
 <h4>Data</h4>
 
 <form method="POST" action="">
   {% csrf_token %}
   <p>
-    <input type="submit" class="btn btn-secondary" value="Create timelapse from selected" />
+    <input type="submit" class="btn btn-primary" value="Create timelapse from selected" />
+    <input type="button" class="btn btn-secondary" onclick="selectAllProducts()" value="Select all" />
+    <input type="button" class="btn btn-secondary" onclick="selectAllProducts(true)" value="Select reduced" />
   </p>
   <table class="table table-striped">
     <thead><tr><th></th><th></th><th></th><th>Filename</th><th>Tag</th><th>Delete</th></tr></thead>
@@ -15,7 +20,8 @@
         {# Show checkbox for inclusion of this product in the timelapse #}
         <td>
           {%  if 'fits' in product.get_file_name or product.tag == 'fits_file' %}
-              <input type="checkbox" name="{{ product.product_id }}" />
+              <input type="checkbox" name="{{ product.product_id }}"
+                     class="timelapse-checkbox {% if 'e91.fits.fz' not in product.data.name %}reduced{% endif %}" />
           {% endif %}
         </td>
 
