@@ -14,7 +14,8 @@ setup(
     author='Joe Singleton',
     author_email='joesingo@gmail.com',
     install_requires=[
-        'tomtoolkit'
+        'tomtoolkit',
+        'imageio-ffmpeg==0.3.0',
     ],
     packages=find_packages(),
     include_package_data=True,

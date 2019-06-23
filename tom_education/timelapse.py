@@ -5,6 +5,7 @@ import tempfile
 
 from astropy.io import fits
 from django.core.files import File
+from django.conf import settings
 from fits2image.conversions import fits_to_jpg
 import imageio
 from tom_dataproducts.models import DataProduct, IMAGE_FILE
@@ -21,12 +22,22 @@ class Timelapse:
     Class to create an animated timelapse from a sequence of FITS image files
     """
     fits_date_field = 'DATE-OBS'
+    valid_formats = ('gif', 'mp4')
 
-    def __init__(self, products, fmt='gif', fps=10):
+    def __init__(self, products, fmt=None, fps=10):
         self.products = Timelapse.sort_products(products)
         if not self.products:
-            raise ValueError("Empty data products list")
+            raise ValueError('Empty data products list')
+
+        if fmt is None:
+            try:
+                fmt = settings.TOM_EDUCATION_TIMELAPSE_FORMAT
+            except AttributeError:
+                fmt = 'gif'
         self.format = fmt
+
+        if not self.format in self.valid_formats:
+            raise ValueError('Invalid format \'{}\''.format(self.format))
         self.fps = fps
 
         # Check that all products have a common observation record and target
@@ -59,7 +70,19 @@ class Timelapse:
         width, height = size or (200, 200)
 
         tmpdir = tempfile.TemporaryDirectory()
-        with imageio.get_writer(outfile, format=self.format, mode="I", fps=self.fps) as writer:
+        writer_kwargs = {
+            'format': self.format,
+            'mode': 'I',
+            'fps': self.fps
+        }
+        # When saving to MP4, imageio uses ffmpeg, which determines output
+        # format from file extension. When using a BytesIO buffer, imageio
+        # creates a temporary file with no extension, so the ffmpeg call fails.
+        # We need to specify the output format explicitly instead in this case
+        if self.format == 'mp4':
+            writer_kwargs['output_params'] = ['-f', 'mp4']
+
+        with imageio.get_writer(outfile, **writer_kwargs) as writer:
             for i, product in enumerate(self.products):
                 # Note: imageio supports loading FITS images natively, but does
                 # not support compressed FITS. See https://github.com/imageio/imageio/pull/458
