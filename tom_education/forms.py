@@ -1,4 +1,5 @@
 from django import forms
+from django.core.exceptions import ValidationError
 from crispy_forms.layout import Button, Layout, HTML
 
 from tom_education.models import ObservationTemplate
@@ -72,3 +73,7 @@ class TimelapseCreateForm(forms.Form):
 
         for dp in target.dataproduct_set.all():
             self.fields[dp.product_id] = forms.fields.BooleanField(required=False)
+
+    def clean(self):
+        if not any(self.cleaned_data.values()):
+            raise ValidationError('No data product selected')

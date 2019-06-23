@@ -306,6 +306,13 @@ class TimelapseTestCase(TestCase):
 
         # TODO: check timelapse is shown on the page
 
+    def test_empty_form(self):
+        form = TimelapseCreateForm(target=self.target, data={})
+        self.assertFalse(form.is_valid())
+
+        form2 = TimelapseCreateForm(target=self.target, data={'test0': 'on'})
+        self.assertTrue(form2.is_valid())
+
     def test_fits_file_sorting(self):
         correct_order = [self.prods[0], self.prods[1], self.prods[3], self.prods[2]]
         self.assertEqual(Timelapse.sort_products(self.prods), correct_order)

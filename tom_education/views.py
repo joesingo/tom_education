@@ -132,6 +132,12 @@ class TimelapseTargetDetailView(FormMixin, TargetDetailView):
         form = self.get_form()
         if form.is_valid():
             return self.form_valid(form)
+        # Form is not rendered in the template, so add form errors as messages
+        # Note: this discards information about which field each error relates
+        # to, since errors are not field-specific for the timelapse form
+        for err_list in form.errors.values():
+            for err_msg in err_list:
+                messages.error(self.request, err_msg)
         return self.form_invalid(form)
 
     def form_valid(self, form):
