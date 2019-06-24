@@ -117,11 +117,12 @@ class Timelapse:
         the FITS header
         """
         def sort_key(product):
-            hdus = fits.open(product.data.path)
-            try:
-                dt_str = hdus[0].header[cls.fits_date_field]
-            except KeyError:
-                raise DateFieldNotFoundError(product.data.name)
-            return datetime.fromisoformat(dt_str)
+            for hdu in fits.open(product.data.path):
+                try:
+                    dt_str = hdu.header[cls.fits_date_field]
+                except KeyError:
+                    continue
+                return datetime.fromisoformat(dt_str)
+            raise DateFieldNotFoundError(product.data.name)
 
         return sorted(products, key=sort_key)
