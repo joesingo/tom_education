@@ -24,21 +24,21 @@ class Timelapse:
     fits_date_field = 'DATE-OBS'
     valid_formats = ('gif', 'mp4')
 
-    def __init__(self, products, fmt=None, fps=10):
+    def __init__(self, products, fmt=None, fps=None):
         self.products = Timelapse.sort_products(products)
         if not self.products:
             raise ValueError('Empty data products list')
 
-        if fmt is None:
-            try:
-                fmt = settings.TOM_EDUCATION_TIMELAPSE_FORMAT
-            except AttributeError:
-                fmt = 'gif'
-        self.format = fmt
+        try:
+            defaults = settings.TOM_EDUCATION_TIMELAPSE_SETTINGS
+        except AttributeError:
+            defaults = {}
+
+        self.format = fmt or defaults.get('format', 'gif')
+        self.fps = fps or defaults.get('fps', 10)
 
         if not self.format in self.valid_formats:
             raise ValueError('Invalid format \'{}\''.format(self.format))
-        self.fps = fps
 
         # Check that all products have a common observation record and target
         obs_records = {prod.observation_record for prod in self.products}
