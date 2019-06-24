@@ -105,11 +105,12 @@ class Timelapse:
         """
         Create and return a DataProduct for the timelapse
         """
-        # TODO: construct a more human-readable ID
         now = datetime.now()
-        product_id = 'timelapse_{}_{}_{}'.format(
-            self.target.pk, self.obs.pk, now.strftime('%Y-%m-%d-%H%M%S')
-        )
+        date_str = now.strftime('%Y-%m-%d-%H%M%S')
+        # Note: product ID must be unique, so use target and observation PKs
+        # Filename does not need to be unique and can be more human readable
+        product_id = 'timelapse_{}_{}_{}'.format(self.target.pk, self.obs.pk, date_str)
+        base_filename = 'timelapse_{}_{}'.format(self.target.identifier, date_str)
         prod = DataProduct(
             product_id=product_id,
             target=self.target,
@@ -118,7 +119,7 @@ class Timelapse:
         )
         buf = BytesIO()
         self.create(buf)
-        prod.data.save(self.get_name(product_id), File(buf), save=True)
+        prod.data.save(self.get_name(base_filename), File(buf), save=True)
         return prod
 
     @classmethod
