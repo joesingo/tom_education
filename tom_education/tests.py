@@ -262,11 +262,16 @@ class TimelapseTestCase(TestCase):
     # Methods to check a buffer for file signatures.
     # See https://www.garykessler.net/library/file_sigs.html
     def assert_gif_data(self, data):
+        data.seek(0)
         self.assertEqual(data.read(6), b'GIF89a')
 
     def assert_mp4_data(self, data):
         data.seek(4)
         self.assertEqual(data.read(8), b'ftypisom')
+
+    def assert_webm_data(self, data):
+        data.seek(0)
+        self.assertEqual(data.read(4), b'\x1a\x45\xdf\xa3')
 
     @patch('tom_education.views.Timelapse.create_dataproduct')
     @patch('tom_education.views.Timelapse.__init__', return_value=None)
@@ -357,7 +362,6 @@ class TimelapseTestCase(TestCase):
         tl = Timelapse(self.prods, fmt='gif', fps=13)
         buf = BytesIO()
         tl.create(buf)
-        buf.seek(0)
         self.assert_gif_data(buf)
 
         # Check the number of frames is correct
@@ -378,6 +382,13 @@ class TimelapseTestCase(TestCase):
         # Load and check the mp4 with imageio
         frames = imageio.mimread(buf, format='mp4')
         self.assertEqual(len(frames), len(self.prods))
+
+    def test_create_webm(self):
+        tl = Timelapse(self.prods, fps=13, fmt='webm')
+        buf = BytesIO()
+        tl.create(buf)
+        buf.seek(0)
+        self.assert_webm_data(buf)
 
     def test_invalid_format(self):
         with self.assertRaises(ValueError):

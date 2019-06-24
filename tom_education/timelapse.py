@@ -20,7 +20,7 @@ class Timelapse:
     Class to create an animated timelapse from a sequence of FITS image files
     """
     fits_date_field = 'DATE-OBS'
-    valid_formats = ('gif', 'mp4')
+    valid_formats = ('gif', 'mp4', 'webm')
 
     def __init__(self, products, fmt=None, fps=None):
         self.products = Timelapse.sort_products(products)
@@ -72,12 +72,23 @@ class Timelapse:
             'mode': 'I',
             'fps': self.fps
         }
-        # When saving to MP4, imageio uses ffmpeg, which determines output
-        # format from file extension. When using a BytesIO buffer, imageio
-        # creates a temporary file with no extension, so the ffmpeg call fails.
-        # We need to specify the output format explicitly instead in this case
-        if self.format == 'mp4':
-            writer_kwargs['output_params'] = ['-f', 'mp4']
+
+        # When saving to MP4 or WebM, imageio uses ffmpeg, which determines
+        # output format from file extension. When using a BytesIO buffer,
+        # imageio creates a temporary file with no extension, so the ffmpeg
+        # call fails. We need to specify the output format explicitly instead
+        # in this case
+        if self.format in ('mp4', 'webm'):
+            writer_kwargs['output_params'] = ['-f', self.format]
+
+            # Need to specify codec for WebM
+            if self.format == 'webm':
+                writer_kwargs['codec'] = 'vp8'
+
+            # The imageio plugin does not recognise webm as a format, so set
+            # 'format' to 'mp4' in either case (this does not affect the ffmpeg
+            # call)
+            writer_kwargs['format'] = 'mp4'
 
         with imageio.get_writer(outfile, **writer_kwargs) as writer:
             for i, product in enumerate(self.products):
