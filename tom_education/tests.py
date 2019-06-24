@@ -354,7 +354,7 @@ class TimelapseTestCase(TestCase):
             Timelapse([self.prods[0], self.prods[1], other_obs_prod])
 
     def test_create_gif(self):
-        tl = Timelapse(self.prods, fps=13)
+        tl = Timelapse(self.prods, fmt='gif', fps=13)
         buf = BytesIO()
         tl.create(buf)
         buf.seek(0)

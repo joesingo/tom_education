@@ -1,12 +1,10 @@
 from datetime import datetime
 from io import BytesIO
 import os.path
-import tempfile
 
 from astropy.io import fits
 from django.core.files import File
 from django.conf import settings
-from fits2image.conversions import fits_to_jpg
 import imageio
 from tom_dataproducts.models import DataProduct, IMAGE_FILE
 
@@ -69,7 +67,6 @@ class Timelapse:
                 break
         width, height = size or (200, 200)
 
-        tmpdir = tempfile.TemporaryDirectory()
         writer_kwargs = {
             'format': self.format,
             'mode': 'I',
@@ -84,13 +81,7 @@ class Timelapse:
 
         with imageio.get_writer(outfile, **writer_kwargs) as writer:
             for i, product in enumerate(self.products):
-                # Note: imageio supports loading FITS images natively, but does
-                # not support compressed FITS. See https://github.com/imageio/imageio/pull/458
-                # In the mean time, convert .fits.fz to a temporary JPG first
-                tmpfile = os.path.join(tmpdir.name, 'frame_{}.jpg').format(i)
-                fits_to_jpg(product.data.path, tmpfile, width=width, height=height)
-                writer.append_data(imageio.imread(tmpfile))
-        tmpdir.cleanup()
+                writer.append_data(imageio.imread(product.data.path, format='fits'))
 
     def get_name(self, base):
         """
