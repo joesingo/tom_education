@@ -38,16 +38,13 @@ class Timelapse:
         if not self.format in self.valid_formats:
             raise ValueError('Invalid format \'{}\''.format(self.format))
 
-        # Check that all products have a common observation record and target
-        obs_records = {prod.observation_record for prod in self.products}
+        # Check that all products have a common target
         targets = {prod.target for prod in self.products}
-        if len(obs_records) > 1 or len(targets) > 1:
+        if len(targets) > 1:
             raise ValueError(
-                'Cannot create a timelapse for data products from different '
-                'observations or targets'
+                'Cannot create a timelapse for data products from different targets'
             )
         self.target = list(targets)[0]
-        self.obs = list(obs_records)[0]
 
     def create(self, outfile):
         """
@@ -107,14 +104,11 @@ class Timelapse:
         """
         now = datetime.now()
         date_str = now.strftime('%Y-%m-%d-%H%M%S')
-        # Note: product ID must be unique, so use target and observation PKs
-        # Filename does not need to be unique and can be more human readable
-        product_id = 'timelapse_{}_{}_{}'.format(self.target.pk, self.obs.pk, date_str)
+        product_id = 'timelapse_{}_{}'.format(self.target.pk, date_str)
         base_filename = 'timelapse_{}_{}'.format(self.target.identifier, date_str)
         prod = DataProduct(
             product_id=product_id,
             target=self.target,
-            observation_record=self.obs,
             tag=IMAGE_FILE[0]
         )
         buf = BytesIO()

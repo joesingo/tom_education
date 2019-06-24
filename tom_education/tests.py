@@ -328,35 +328,37 @@ class TimelapseTestCase(TestCase):
         correct_order = [self.prods[0], self.prods[1], self.prods[3], self.prods[2]]
         self.assertEqual(Timelapse.sort_products(self.prods), correct_order)
 
-    def test_different_obs_or_target(self):
+    def test_different_target(self):
         """
         Should not be able to create a timelapse for a list of data products
-        that are not all for the same observation and target
+        that are not all for the same target
         """
         other_target = TargetFactory.create()
-        other_obs = ObservingRecordFactory.create(
-            target_id=other_target.id,
-            facility=FakeFacility.name,
-            parameters='{}'
-        )
-
         other_target_prod = DataProduct.objects.create(
             product_id='other_target',
             target=other_target,
             observation_record=self.observation_record,
             data=self.prods[0].data.name
         )
+        with self.assertRaises(ValueError):
+            Timelapse([self.prods[0], self.prods[1], other_target_prod])
+
+    def test_multiple_observations(self):
+        """
+        Should be able to create a timelapse of data from several observations
+        """
+        other_obs = ObservingRecordFactory.create(
+            target_id=self.target.id,
+            facility=FakeFacility.name,
+            parameters='{}'
+        )
         other_obs_prod = DataProduct.objects.create(
-            product_id='other_obs',
+            product_id='different observation',
             target=self.target,
             observation_record=other_obs,
             data=self.prods[0].data.name
         )
-
-        with self.assertRaises(ValueError):
-            Timelapse([self.prods[0], self.prods[1], other_target_prod])
-        with self.assertRaises(ValueError):
-            Timelapse([self.prods[0], self.prods[1], other_obs_prod])
+        Timelapse([self.prods[0], self.prods[1], other_obs_prod])
 
     def test_create_gif(self):
         tl = Timelapse(self.prods, fmt='gif', fps=13)
@@ -406,7 +408,7 @@ class TimelapseTestCase(TestCase):
 
         # Check fields are correct
         self.assertEqual(prod.target, self.target)
-        self.assertEqual(prod.observation_record, self.observation_record)
+        self.assertEqual(prod.observation_record, None)
         self.assertEqual(prod.tag, IMAGE_FILE[0])
         self.assertTrue('timelapse_{}'.format(self.target.pk) in prod.product_id)
         self.assertTrue('timelapse_{}'.format(self.target.identifier) in prod.data.name)
