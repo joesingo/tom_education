@@ -51,19 +51,6 @@ class Timelapse:
         Create the timelapse output file. `outfile` may be a path or file-like
         object
         """
-        # Open the first file to get image size; we assume all images are the
-        # same size. The size is required for fits2image, which defaults to
-        # 200x200 instead of preserving original size...
-        size = None
-        for hdu in fits.open(self.products[0].data.path):
-            try:
-                size = (hdu.header['NAXIS1'], hdu.header['NAXIS2'])
-            except KeyError:
-                continue
-            if size != (0, 0):
-                break
-        width, height = size or (200, 200)
-
         writer_kwargs = {
             'format': self.format,
             'mode': 'I',
