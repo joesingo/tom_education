@@ -91,8 +91,7 @@ class Timelapse:
         """
         now = datetime.now()
         date_str = now.strftime('%Y-%m-%d-%H%M%S')
-        product_id = 'timelapse_{}_{}'.format(self.target.pk, date_str)
-        base_filename = 'timelapse_{}_{}'.format(self.target.identifier, date_str)
+        product_id = 'timelapse_{}_{}'.format(self.target.identifier, date_str)
         prod = DataProduct(
             product_id=product_id,
             target=self.target,
@@ -100,7 +99,7 @@ class Timelapse:
         )
         buf = BytesIO()
         self.create(buf)
-        prod.data.save(self.get_name(base_filename), File(buf), save=True)
+        prod.data.save(self.get_name(product_id), File(buf), save=True)
         return prod
 
     @classmethod

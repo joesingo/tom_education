@@ -410,7 +410,7 @@ class TimelapseTestCase(TestCase):
         self.assertEqual(prod.target, self.target)
         self.assertEqual(prod.observation_record, None)
         self.assertEqual(prod.tag, IMAGE_FILE[0])
-        self.assertTrue('timelapse_{}'.format(self.target.pk) in prod.product_id)
+        self.assertTrue('timelapse_{}'.format(self.target.identifier) in prod.product_id)
         self.assertTrue('timelapse_{}'.format(self.target.identifier) in prod.data.name)
         self.assertTrue(prod.data.name.endswith('.gif'))
         # Check the actual data file
