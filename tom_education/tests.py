@@ -1,6 +1,7 @@
 from datetime import datetime
 from io import BytesIO
 import json
+import os.path
 from unittest.mock import patch
 
 from astropy.io import fits
@@ -20,7 +21,7 @@ from tom_observations.tests.factories import TargetFactory, ObservingRecordFacto
 from tom_observations.tests.utils import FakeFacility, FakeFacilityForm
 
 from tom_education.forms import TimelapseCreateForm
-from tom_education.models import ObservationTemplate
+from tom_education.models import ObservationTemplate, TimelapseDataProduct
 from tom_education.timelapse import Timelapse
 
 
@@ -259,6 +260,8 @@ class TimelapseTestCase(TestCase):
             prod.data.save(product_id, File(buf), save=True)
             cls.prods.append(prod)
 
+        cls.prod_pks = [prod.pk for prod in cls.prods]
+
     # Methods to check a buffer for file signatures.
     # See https://www.garykessler.net/library/file_sigs.html
     def assert_gif_data(self, data):
@@ -273,14 +276,19 @@ class TimelapseTestCase(TestCase):
         data.seek(0)
         self.assertEqual(data.read(4), b'\x1a\x45\xdf\xa3')
 
-    @patch('tom_education.views.Timelapse.create_dataproduct')
+    @override_settings(TOM_EDUCATION_TIMELAPSE_SETTINGS={'format': 'gif', 'fps': 16})
+    @patch('tom_education.views.datetime')
+    @patch('tom_education.views.Timelapse.write')
     @patch('tom_education.views.Timelapse.__init__', return_value=None)
-    def test_create_timelapse_form(self, init_mock, create_dp_mock):
+    def test_create_timelapse_form(self, init_mock, write_mock, dt_mock):
         """
         Test the view and form, and check that the timelapse methods are called
         with the correct arguments
         """
-        create_dp_mock.return_value = self.prods[0]
+        dt_mock.now.return_value = datetime(
+            year=2019, month=1, day=2, hour=3, minute=4, second=5, microsecond=6
+        )
+        write_mock.return_value = self.prods[0]
 
         # GET page and check form is in the context
         url = reverse('tom_education:target_detail', kwargs={'pk': self.target.pk})
@@ -292,6 +300,9 @@ class TimelapseTestCase(TestCase):
         self.assertIn(b'Select all', response.content)
         self.assertIn(b'Select reduced', response.content)
 
+        pre_tldp_count = TimelapseDataProduct.objects.count()
+        self.assertEqual(pre_tldp_count, 0)
+
         # POST form
         response2 = self.client.post(url, {
             'test0': 'on',
@@ -302,9 +313,30 @@ class TimelapseTestCase(TestCase):
         self.assertEqual(response2.status_code, 302)
         self.assertEqual(response2.url, url)
 
-        # Check appropriate methods were called with correct arguments
-        init_mock.assert_called_once_with({self.prods[0], self.prods[2], self.prods[3]})
-        create_dp_mock.assert_called_once()
+        # TimelapseDataProduct model should have been created
+        post_tldp_count = TimelapseDataProduct.objects.count()
+        self.assertEqual(post_tldp_count, pre_tldp_count + 1)
+        tldp = TimelapseDataProduct.objects.all()[0]
+
+        # Check the fields are correct
+        self.assertEqual(tldp.target, self.target)
+        self.assertEqual(tldp.observation_record, None)
+        self.assertEqual(tldp.tag, IMAGE_FILE[0])
+        expected_id = 'timelapse_{}_2019-01-02-030405'.format(self.target.identifier)
+        expected_filename = expected_id + '.gif'
+        self.assertEqual(tldp.product_id, expected_id)
+        self.assertTrue(os.path.basename(tldp.data.name), expected_filename)
+        self.assertEqual(set(tldp.frames.all()), {self.prods[0], self.prods[2], self.prods[3]})
+
+        # Status should be set
+        self.assertTrue(tldp.status)
+
+        # Check the Timelapse methods were called with correct arguments
+        init_mock.assert_called_once_with(
+            {self.prods[0].pk, self.prods[2].pk, self.prods[3].pk},
+            'gif', 16
+        )
+        write_mock.assert_called_once_with(tldp, expected_filename)
 
         # Check a message is shown on next request to indicate success
         response3 = self.client.get(url)
@@ -341,7 +373,7 @@ class TimelapseTestCase(TestCase):
             data=self.prods[0].data.name
         )
         with self.assertRaises(ValueError):
-            Timelapse([self.prods[0], self.prods[1], other_target_prod])
+            Timelapse([self.prods[0].pk, self.prods[1].pk, other_target_prod.pk], 'gif', 10)
 
     def test_multiple_observations(self):
         """
@@ -358,12 +390,12 @@ class TimelapseTestCase(TestCase):
             observation_record=other_obs,
             data=self.prods[0].data.name
         )
-        Timelapse([self.prods[0], self.prods[1], other_obs_prod])
+        Timelapse([self.prods[0].pk, self.prods[1].pk, other_obs_prod.pk], 'gif', 10)
 
     def test_create_gif(self):
-        tl = Timelapse(self.prods, fmt='gif', fps=13)
+        tl = Timelapse(self.prod_pks, fmt='gif', fps=13)
         buf = BytesIO()
-        tl.create(buf)
+        tl._write(buf)
         self.assert_gif_data(buf)
 
         # Check the number of frames is correct
@@ -376,9 +408,9 @@ class TimelapseTestCase(TestCase):
         # TODO: check the actual image data
 
     def test_create_mp4(self):
-        tl = Timelapse(self.prods, fps=13, fmt='mp4')
+        tl = Timelapse(self.prod_pks, fps=13, fmt='mp4')
         buf = BytesIO()
-        tl.create(buf)
+        tl._write(buf)
         self.assert_mp4_data(buf)
         buf.seek(0)
         # Load and check the mp4 with imageio
@@ -386,35 +418,28 @@ class TimelapseTestCase(TestCase):
         self.assertEqual(len(frames), len(self.prods))
 
     def test_create_webm(self):
-        tl = Timelapse(self.prods, fps=13, fmt='webm')
+        tl = Timelapse(self.prod_pks, fps=13, fmt='webm')
         buf = BytesIO()
-        tl.create(buf)
+        tl._write(buf)
         buf.seek(0)
         self.assert_webm_data(buf)
 
     def test_invalid_format(self):
         with self.assertRaises(ValueError):
-            Timelapse(self.prods, fmt='blah')
+            Timelapse(self.prod_pks, fmt='blah', fps=10)
 
-    def test_create_dataproduct(self):
-        tl = Timelapse(self.prods, fmt='gif')
-        pre_dp_count = DataProduct.objects.count()
+    def test_write_dataproduct(self):
+        tldp = TimelapseDataProduct.objects.create(
+            product_id='myproduct',
+            target=self.target
+        )
+        tldp.data.save('somename.gif', File(BytesIO()), save=True)
+        tl = Timelapse(self.prod_pks, fmt='gif', fps=10)
+        tl.write(tldp, 'somename.gif')
+        self.assertTrue(tldp.data.name.endswith('/somename.gif'))
 
-        prod = tl.create_dataproduct()
-        # Check product has been created successfully
-        self.assertIsInstance(prod, DataProduct)
-        post_dp_count = DataProduct.objects.count()
-        self.assertEqual(post_dp_count, pre_dp_count + 1)
-
-        # Check fields are correct
-        self.assertEqual(prod.target, self.target)
-        self.assertEqual(prod.observation_record, None)
-        self.assertEqual(prod.tag, IMAGE_FILE[0])
-        self.assertTrue('timelapse_{}'.format(self.target.identifier) in prod.product_id)
-        self.assertTrue('timelapse_{}'.format(self.target.identifier) in prod.data.name)
-        self.assertTrue(prod.data.name.endswith('.gif'))
         # Check the actual data file
-        self.assert_gif_data(prod.data.file)
+        self.assert_gif_data(tldp.data.file)
 
     @patch('tom_education.views.Timelapse.fits_date_field', new='hello')
     def test_no_observation_date_view(self):

@@ -1,19 +1,22 @@
 from datetime import datetime
+from io import BytesIO
 import json
 import os.path
 
 from django.core.exceptions import PermissionDenied
+from django.core.files import File
+from django.conf import settings
 from django.contrib import messages
 from django.db.utils import IntegrityError
 from django.utils.http import urlencode
 from django.views.generic.edit import FormMixin
 from django.shortcuts import redirect, reverse
-from tom_dataproducts.models import DataProduct
+from tom_dataproducts.models import DataProduct, IMAGE_FILE
 from tom_observations.views import ObservationCreateView
 from tom_targets.views import TargetDetailView
 
 from tom_education.forms import make_templated_form, TimelapseCreateForm
-from tom_education.models import ObservationTemplate
+from tom_education.models import ObservationTemplate, TimelapseDataProduct, TIMELAPSE_PENDING
 from tom_education.timelapse import Timelapse, DateFieldNotFoundError
 
 
@@ -147,15 +150,43 @@ class TimelapseTargetDetailView(FormMixin, TargetDetailView):
             DataProduct.objects.get(product_id=pid)
             for pid, checked in form.cleaned_data.items() if checked
         }
+
         try:
-            tl = Timelapse(products)
+            tl_settings = settings.TOM_EDUCATION_TIMELAPSE_SETTINGS
+        except AttributeError:
+            tl_settings = {}
+        fmt = tl_settings.get('format', 'gif')
+        fps = tl_settings.get('fps', 10)
+
+        # Create a TimelapseDataProduct
+        target = self.get_object()
+        now = datetime.now()
+        date_str = now.strftime('%Y-%m-%d-%H%M%S')
+        product_id = 'timelapse_{}_{}'.format(target.identifier, date_str)
+        filename = '{}.{}'.format(product_id, fmt)
+
+        tl_prod = TimelapseDataProduct.objects.create(
+            product_id=product_id,
+            target=target,
+            tag=IMAGE_FILE[0],
+            status=TIMELAPSE_PENDING
+        )
+        # Save empty file in data attribute
+        tl_prod.data.save(filename, File(BytesIO()))
+        tl_prod.frames.add(*products)
+        tl_prod.save()
+
+        # TODO: do this in a job queue
+        product_pks = {prod.pk for prod in products}
+        try:
+            tl = Timelapse(product_pks, fmt, fps)
         except DateFieldNotFoundError as ex:
             messages.error(self.request, 'Could not find observation date in \'{}\''.format(ex))
             return response
 
-        product = tl.create_dataproduct()
+        tl.write(tl_prod, filename)
         msg = 'Timelapse \'{}\' created successfully'.format(
-            os.path.basename(product.data.name)
+            os.path.basename(tl_prod.data.name)
         )
         messages.success(self.request, msg)
         return response

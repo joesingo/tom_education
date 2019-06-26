@@ -1,12 +1,12 @@
 from datetime import datetime
 from io import BytesIO
-import os.path
 
 from astropy.io import fits
 from django.core.files import File
-from django.conf import settings
 import imageio
-from tom_dataproducts.models import DataProduct, IMAGE_FILE
+from tom_dataproducts.models import DataProduct
+
+from tom_education.models import TIMELAPSE_CREATED
 
 
 class DateFieldNotFoundError(Exception):
@@ -22,21 +22,18 @@ class Timelapse:
     fits_date_field = 'DATE-OBS'
     valid_formats = ('gif', 'mp4', 'webm')
 
-    def __init__(self, products, fmt=None, fps=None):
-        self.products = Timelapse.sort_products(products)
+    def __init__(self, product_pks, fmt, fps):
+        self.products = Timelapse.sort_products(
+            DataProduct.objects.get(pk=pk) for pk in product_pks
+        )
         if not self.products:
             raise ValueError('Empty data products list')
 
-        try:
-            defaults = settings.TOM_EDUCATION_TIMELAPSE_SETTINGS
-        except AttributeError:
-            defaults = {}
-
-        self.format = fmt or defaults.get('format', 'gif')
-        self.fps = fps or defaults.get('fps', 10)
-
+        self.format = fmt
         if not self.format in self.valid_formats:
             raise ValueError('Invalid format \'{}\''.format(self.format))
+
+        self.fps = fps
 
         # Check that all products have a common target
         targets = {prod.target for prod in self.products}
@@ -44,12 +41,11 @@ class Timelapse:
             raise ValueError(
                 'Cannot create a timelapse for data products from different targets'
             )
-        self.target = list(targets)[0]
 
-    def create(self, outfile):
+    def _write(self, outfile):
         """
-        Create the timelapse output file. `outfile` may be a path or file-like
-        object
+        Write the timelapse to the given output file, which may be a path or
+        file-like object
         """
         writer_kwargs = {
             'format': self.format,
@@ -75,32 +71,20 @@ class Timelapse:
             writer_kwargs['format'] = 'mp4'
 
         with imageio.get_writer(outfile, **writer_kwargs) as writer:
-            for i, product in enumerate(self.products):
+            for product in self.products:
                 writer.append_data(imageio.imread(product.data.path, format='fits'))
 
-    def get_name(self, base):
+    def write(self, tl_prod, filename):
         """
-        Return the filename for the timelapse file
+        Create the timelapse and write it to the data attribute in the
+        timelapse data product
         """
-        extension = self.format
-        return '{}.{}'.format(base, extension)
-
-    def create_dataproduct(self):
-        """
-        Create and return a DataProduct for the timelapse
-        """
-        now = datetime.now()
-        date_str = now.strftime('%Y-%m-%d-%H%M%S')
-        product_id = 'timelapse_{}_{}'.format(self.target.identifier, date_str)
-        prod = DataProduct(
-            product_id=product_id,
-            target=self.target,
-            tag=IMAGE_FILE[0]
-        )
         buf = BytesIO()
-        self.create(buf)
-        prod.data.save(self.get_name(product_id), File(buf), save=True)
-        return prod
+        self._write(buf)
+        tl_prod.data.delete()
+        tl_prod.data.save(filename, File(buf))
+        tl_prod.status = TIMELAPSE_CREATED
+        tl_prod.save()
 
     @classmethod
     def sort_products(cls, products):

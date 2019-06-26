@@ -3,6 +3,7 @@ from urllib.parse import urlparse, parse_qs, urlunparse
 
 from django.db import models
 from django.utils.http import urlencode
+from tom_dataproducts.models import DataProduct
 from tom_targets.models import Target
 
 
@@ -39,3 +40,21 @@ class ObservationTemplate(models.Model):
         now = datetime.now()
         fmt = '%Y-%m-%d-%H%M%S'
         return "{}-{}".format(self.name, now.strftime(fmt))
+
+
+TIMELAPSE_PENDING = 'pending'
+TIMELAPSE_CREATED = 'created'
+TIMELAPSE_FAILED = 'failed'
+
+
+class TimelapseDataProduct(DataProduct):
+    """
+    A timelapse data product created from other data products
+    """
+    STATUS_CHOICES = (
+        (TIMELAPSE_PENDING, 'Pending'),
+        (TIMELAPSE_CREATED, 'Created'),
+        (TIMELAPSE_FAILED, 'Failed')
+    )
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, blank=True)
+    frames = models.ManyToManyField(DataProduct, related_name='timelapse')
