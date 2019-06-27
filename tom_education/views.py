@@ -8,16 +8,22 @@ from django.core.files import File
 from django.conf import settings
 from django.contrib import messages
 from django.db.utils import IntegrityError
+from django.http import JsonResponse
 from django.utils.http import urlencode
+from django.views.generic import ListView
 from django.views.generic.edit import FormMixin
 from django.shortcuts import redirect, reverse
 from tom_dataproducts.models import DataProduct, IMAGE_FILE
 from tom_observations.views import ObservationCreateView
+from tom_targets.models import Target
 from tom_targets.views import TargetDetailView
 
 from tom_education.forms import make_templated_form, TimelapseCreateForm
-from tom_education.models import ObservationTemplate, TimelapseDataProduct, TIMELAPSE_PENDING
-from tom_education.timelapse import Timelapse, DateFieldNotFoundError
+from tom_education.models import (
+    ObservationTemplate, TimelapseDataProduct, TIMELAPSE_PENDING, TIMELAPSE_CREATED,
+    TIMELAPSE_FAILED
+)
+from tom_education.tasks import make_timelapse
 
 
 class TemplatedObservationCreateView(ObservationCreateView):
@@ -176,17 +182,36 @@ class TimelapseTargetDetailView(FormMixin, TargetDetailView):
         tl_prod.frames.add(*products)
         tl_prod.save()
 
-        # TODO: do this in a job queue
-        product_pks = {prod.pk for prod in products}
-        try:
-            tl = Timelapse(product_pks, fmt, fps)
-        except DateFieldNotFoundError as ex:
-            messages.error(self.request, 'Could not find observation date in \'{}\''.format(ex))
-            return response
+        make_timelapse.send(tl_prod.pk, filename, fmt, fps)
+        return JsonResponse({'ok': True})
 
-        tl.write(tl_prod, filename)
-        msg = 'Timelapse \'{}\' created successfully'.format(
-            os.path.basename(tl_prod.data.name)
-        )
-        messages.success(self.request, msg)
-        return response
+
+class TimelapseStatusApiView(ListView):
+    """
+    View that finds all TimelapseDataProduct objects associated with a
+    specified Target, groups them by status, and returns the listing in a JSON
+    response
+    """
+    def get_queryset(self):
+        target = Target.objects.get(pk=self.kwargs['target'])
+        return TimelapseDataProduct.objects.filter(target=target)
+
+    def get(self, request, *args, **kwargs):
+        statuses = (TIMELAPSE_PENDING, TIMELAPSE_CREATED, TIMELAPSE_FAILED)
+        response_dict = {
+            'ok': True,
+            'timelapses': {status: [] for status in statuses}
+        }
+
+        try:
+            qs = self.get_queryset()
+        except Target.DoesNotExist:
+            return JsonResponse({'ok': False, 'error': 'Target not found'}, status=404)
+
+        for tl_prod in qs:
+            prod_dict = {'product_id': tl_prod.product_id}
+            response_dict['timelapses'][tl_prod.status].append(prod_dict)
+        # Sort each list by product ID so we have a consistent order
+        for status in statuses:
+            response_dict['timelapses'][status].sort(key=lambda d: d['product_id'])
+        return JsonResponse(response_dict)

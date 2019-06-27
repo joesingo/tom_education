@@ -21,8 +21,11 @@ from tom_observations.tests.factories import TargetFactory, ObservingRecordFacto
 from tom_observations.tests.utils import FakeFacility, FakeFacilityForm
 
 from tom_education.forms import TimelapseCreateForm
-from tom_education.models import ObservationTemplate, TimelapseDataProduct
-from tom_education.timelapse import Timelapse
+from tom_education.models import (
+    ObservationTemplate, TimelapseDataProduct, TIMELAPSE_CREATED, TIMELAPSE_PENDING,
+    TIMELAPSE_FAILED
+)
+from tom_education.timelapse import Timelapse, DateFieldNotFoundError
 
 
 class FakeTemplateFacilityForm(FakeFacilityForm):
@@ -278,8 +281,8 @@ class TimelapseTestCase(TestCase):
 
     @override_settings(TOM_EDUCATION_TIMELAPSE_SETTINGS={'format': 'gif', 'fps': 16})
     @patch('tom_education.views.datetime')
-    @patch('tom_education.views.Timelapse.write')
-    @patch('tom_education.views.Timelapse.__init__', return_value=None)
+    @patch('tom_education.tasks.Timelapse.write')
+    @patch('tom_education.tasks.Timelapse.__init__', return_value=None)
     def test_create_timelapse_form(self, init_mock, write_mock, dt_mock):
         """
         Test the view and form, and check that the timelapse methods are called
@@ -309,9 +312,9 @@ class TimelapseTestCase(TestCase):
             'test3': 'on',
             'test2': 'on',
         })
-        # Should be redirected to target detail
-        self.assertEqual(response2.status_code, 302)
-        self.assertEqual(response2.url, url)
+        # Should get JSON response
+        self.assertEqual(response2.status_code, 200)
+        self.assertEqual(response2.json(), {'ok': True})
 
         # TimelapseDataProduct model should have been created
         post_tldp_count = TimelapseDataProduct.objects.count()
@@ -331,23 +334,64 @@ class TimelapseTestCase(TestCase):
         # Status should be set
         self.assertTrue(tldp.status)
 
-        # Check the Timelapse methods were called with correct arguments
-        init_mock.assert_called_once_with(
-            {self.prods[0].pk, self.prods[2].pk, self.prods[3].pk},
-            'gif', 16
+        # TODO: store format and FPS in the model and check their values here
+
+    def test_timelapse_status_api(self):
+        tl_prod = TimelapseDataProduct.objects.create(
+            product_id='hello',
+            target=self.target,
+            status=TIMELAPSE_PENDING
         )
-        write_mock.assert_called_once_with(tldp, expected_filename)
+        failed_tl_prod = TimelapseDataProduct.objects.create(
+            product_id='ohno',
+            target=self.target,
+            status=TIMELAPSE_FAILED
+        )
+        url = reverse('tom_education:timelapse_status_api', kwargs={'target': self.target.pk})
 
-        # Check a message is shown on next request to indicate success
+        response1 = self.client.get(url)
+        self.assertEqual(response1.status_code, 200)
+        self.assertEqual(response1.json(), {
+            'ok': True,
+            'timelapses': {
+                'pending': [{'product_id': 'hello'}],
+                'created': [],
+                'failed': [{'product_id': 'ohno'}]
+            }
+        })
+
+        tl_prod.status = TIMELAPSE_CREATED
+        tl_prod.save()
+        response2 = self.client.get(url)
+        self.assertEqual(response2.status_code, 200)
+        self.assertEqual(response2.json(), {
+            'ok': True,
+            'timelapses': {
+                'pending': [],
+                'created': [{'product_id': 'hello'}],
+                'failed': [{'product_id': 'ohno'}]
+            }
+        })
+
+        tl_prod.status = TIMELAPSE_FAILED
+        tl_prod.save()
         response3 = self.client.get(url)
-        messages = list(response3.context['messages'])
-        self.assertTrue(len(messages) == 1)
-        msg = messages[0]
-        self.assertEqual(msg.level, SUCCESS)
-        self.assertTrue(msg.message.startswith('Timelapse'))
-        self.assertTrue(msg.message.endswith('created successfully'))
+        self.assertEqual(response3.status_code, 200)
+        self.assertEqual(response3.json(), {
+            'ok': True,
+            'timelapses': {
+                'pending': [],
+                'created': [],
+                # When multiple timelapses in the same state, they should be
+                # sorted by product ID
+                'failed': [{'product_id': 'hello'}, {'product_id': 'ohno'}]
+            }
+        })
 
-        # TODO: check timelapse is shown on the page
+        # Bad target PK should give 404
+        response4 = self.client.get(reverse('tom_education:timelapse_status_api', kwargs={'target': 100000}))
+        self.assertEqual(response4.status_code, 404)
+        self.assertEqual(response4.json(), {'ok': False, 'error': 'Target not found'})
 
     def test_empty_form(self):
         form = TimelapseCreateForm(target=self.target, data={})
@@ -441,21 +485,12 @@ class TimelapseTestCase(TestCase):
         # Check the actual data file
         self.assert_gif_data(tldp.data.file)
 
-    @patch('tom_education.views.Timelapse.fits_date_field', new='hello')
+    @patch('tom_education.tasks.Timelapse.fits_date_field', new='hello')
     def test_no_observation_date_view(self):
         """
         Check we get the expected error when a FITS file does not contain the
         header for the date of the observation. This is achieved by patching
         the field name and setting it to 'hello'
         """
-        url = reverse('tom_education:target_detail', kwargs={'pk': self.target.pk})
-        response = self.client.post(url, {'test0': 'on'})
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, url)
-
-        response2 = self.client.get(url)
-        messages = list(response2.context['messages'])
-        self.assertTrue(len(messages) == 1)
-        msg = messages[0]
-        self.assertEqual(msg.level, ERROR)
-        self.assertTrue(msg.message.startswith('Could not find observation date in'))
+        with self.assertRaises(DateFieldNotFoundError):
+            Timelapse(self.prod_pks, fmt='gif', fps=15)
