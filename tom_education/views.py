@@ -1,10 +1,7 @@
 from datetime import datetime
-from io import BytesIO
 import json
-import os.path
 
 from django.core.exceptions import PermissionDenied
-from django.core.files import File
 from django.conf import settings
 from django.contrib import messages
 from django.db.utils import IntegrityError
@@ -150,39 +147,33 @@ class TimelapseTargetDetailView(FormMixin, TargetDetailView):
         return self.form_invalid(form)
 
     def form_valid(self, form):
-        response = super().form_valid(form)
         # Construct set of data products that were selected
         products = {
             DataProduct.objects.get(product_id=pid)
             for pid, checked in form.cleaned_data.items() if checked
         }
 
-        try:
-            tl_settings = settings.TOM_EDUCATION_TIMELAPSE_SETTINGS
-        except AttributeError:
-            tl_settings = {}
-        fmt = tl_settings.get('format', 'gif')
-        fps = tl_settings.get('fps', 10)
+        tl_settings = getattr(settings, 'TOM_EDUCATION_TIMELAPSE_SETTINGS', {})
+        fmt = tl_settings.get('format')
+        fps = tl_settings.get('fps')
 
         # Create a TimelapseDataProduct
         target = self.get_object()
         now = datetime.now()
         date_str = now.strftime('%Y-%m-%d-%H%M%S')
         product_id = 'timelapse_{}_{}'.format(target.identifier, date_str)
-        filename = '{}.{}'.format(product_id, fmt)
-
         tl_prod = TimelapseDataProduct.objects.create(
             product_id=product_id,
             target=target,
             tag=IMAGE_FILE[0],
-            status=TIMELAPSE_PENDING
+            status=TIMELAPSE_PENDING,
+            fmt=fmt,
+            fps=fps,
         )
-        # Save empty file in data attribute
-        tl_prod.data.save(filename, File(BytesIO()))
         tl_prod.frames.add(*products)
         tl_prod.save()
 
-        make_timelapse.send(tl_prod.pk, filename, fmt, fps)
+        make_timelapse.send(tl_prod.pk)
         return JsonResponse({'ok': True})
 
 

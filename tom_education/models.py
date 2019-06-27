@@ -1,8 +1,13 @@
 from datetime import datetime
+from io import BytesIO
 from urllib.parse import urlparse, parse_qs, urlunparse
 
+from astropy.io import fits
+from django.core.exceptions import ValidationError
+from django.core.files import File
 from django.db import models
 from django.utils.http import urlencode
+import imageio
 from tom_dataproducts.models import DataProduct
 from tom_targets.models import Target
 
@@ -46,6 +51,16 @@ TIMELAPSE_PENDING = 'pending'
 TIMELAPSE_CREATED = 'created'
 TIMELAPSE_FAILED = 'failed'
 
+TIMELAPSE_GIF = 'gif'
+TIMELAPSE_MP4 = 'mp4'
+TIMELAPSE_WEBM = 'webm'
+
+
+class DateFieldNotFoundError(Exception):
+    """
+    The FITS header to obtain observation date was not found
+    """
+
 
 class TimelapseDataProduct(DataProduct):
     """
@@ -56,5 +71,94 @@ class TimelapseDataProduct(DataProduct):
         (TIMELAPSE_CREATED, 'Created'),
         (TIMELAPSE_FAILED, 'Failed')
     )
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, blank=True)
+    FORMAT_CHOICES = (
+        (TIMELAPSE_GIF, 'GIF'),
+        (TIMELAPSE_MP4, 'MP4'),
+        (TIMELAPSE_WEBM, 'WebM')
+    )
+    FITS_DATE_FIELD = 'DATE-OBS'
+
+    status = models.CharField(
+        max_length=10, choices=STATUS_CHOICES, blank=True, default=TIMELAPSE_PENDING
+    )
     frames = models.ManyToManyField(DataProduct, related_name='timelapse')
+    fmt = models.CharField(max_length=10, choices=FORMAT_CHOICES, default=TIMELAPSE_GIF, blank=False)
+    fps = models.FloatField(default=10, blank=False)
+
+    def clean(self):
+        super().clean()
+        if self.fps <= 0:
+            raise ValidationError("FPS must be positive")
+
+    def get_filename(self):
+        return f'{self.product_id}.{self.fmt}'
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        # Create empty placeholder data file
+        if not self.data:
+            print("creating empty file")
+            self.data.save(self.get_filename(), File(BytesIO()), save=False)
+        super().save(*args, **kwargs)
+
+    def write(self):
+        """
+        Create the timelapse and write the file to the data attribute
+        """
+        if not self.frames.all().exists():
+            raise ValueError('Empty data products list')
+        buf = BytesIO()
+        self._write(buf)
+        self.data.delete(save=False)
+        self.data.save(self.get_filename(), File(buf), save=False)
+        # Update status
+        self.status = TIMELAPSE_CREATED
+        self.save()
+
+    def _write(self, outfile):
+        """
+        Write the timelapse to the given output file, which may be a path or
+        file-like object
+        """
+        writer_kwargs = {
+            'format': self.fmt,
+            'mode': 'I',
+            'fps': self.fps
+        }
+
+        # When saving to MP4 or WebM, imageio uses ffmpeg, which determines
+        # output format from file extension. When using a BytesIO buffer,
+        # imageio creates a temporary file with no extension, so the ffmpeg
+        # call fails. We need to specify the output format explicitly instead
+        # in this case
+        if self.fmt in (TIMELAPSE_MP4, TIMELAPSE_WEBM):
+            writer_kwargs['output_params'] = ['-f', self.fmt]
+
+            # Need to specify codec for WebM
+            if self.fmt == TIMELAPSE_WEBM:
+                writer_kwargs['codec'] = 'vp8'
+
+            # The imageio plugin does not recognise webm as a format, so set
+            # 'format' to 'mp4' in either case (this does not affect the ffmpeg
+            # call)
+            writer_kwargs['format'] = TIMELAPSE_MP4
+
+        with imageio.get_writer(outfile, **writer_kwargs) as writer:
+            for product in self.sorted_frames():
+                writer.append_data(imageio.imread(product.data.path, format='fits'))
+
+    def sorted_frames(self):
+        """
+        Return the sequence of DataProduct objects sorted by the date stored in
+        the FITS header
+        """
+        def sort_key(product):
+            for hdu in fits.open(product.data.path):
+                try:
+                    dt_str = hdu.header[self.FITS_DATE_FIELD]
+                except KeyError:
+                    continue
+                return datetime.fromisoformat(dt_str)
+            raise DateFieldNotFoundError(product.data.name)
+
+        return sorted(self.frames.all(), key=sort_key)
