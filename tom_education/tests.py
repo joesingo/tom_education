@@ -25,6 +25,7 @@ from tom_education.models import (
     ObservationTemplate, TimelapseDataProduct, DateFieldNotFoundError,
     TIMELAPSE_CREATED, TIMELAPSE_PENDING, TIMELAPSE_FAILED
 )
+from tom_education.tasks import make_timelapse
 
 
 class FakeTemplateFacilityForm(FakeFacilityForm):
@@ -352,7 +353,8 @@ class TimelapseTestCase(TestCase):
         failed_tl_prod = TimelapseDataProduct.objects.create(
             product_id='ohno',
             target=self.target,
-            status=TIMELAPSE_FAILED
+            status=TIMELAPSE_FAILED,
+            failure_message='oops'
         )
         url = reverse('tom_education:timelapse_status_api', kwargs={'target': self.target.pk})
 
@@ -363,7 +365,7 @@ class TimelapseTestCase(TestCase):
             'timelapses': {
                 'pending': [{'product_id': 'hello'}],
                 'created': [],
-                'failed': [{'product_id': 'ohno'}]
+                'failed': [{'product_id': 'ohno', 'failure_message': 'oops'}]
             }
         })
 
@@ -376,7 +378,7 @@ class TimelapseTestCase(TestCase):
             'timelapses': {
                 'pending': [],
                 'created': [{'product_id': 'hello'}],
-                'failed': [{'product_id': 'ohno'}]
+                'failed': [{'product_id': 'ohno', 'failure_message': 'oops'}]
             }
         })
 
@@ -391,7 +393,8 @@ class TimelapseTestCase(TestCase):
                 'created': [],
                 # When multiple timelapses in the same state, they should be
                 # sorted by product ID
-                'failed': [{'product_id': 'hello'}, {'product_id': 'ohno'}]
+                'failed': [{'product_id': 'hello', 'failure_message': None},
+                           {'product_id': 'ohno', 'failure_message': 'oops'}]
             }
         })
 
@@ -431,6 +434,7 @@ class TimelapseTestCase(TestCase):
             self.prods[0], self.prods[1], other_obs_prod
         ])
         tldp.write()
+        tldp.save()
 
     def test_create_gif(self):
         tldp = self.create_timelapse_dataproduct(self.prods)
@@ -480,9 +484,7 @@ class TimelapseTestCase(TestCase):
         tldp.product_id = 'myproductid'
         tldp.save()
         tldp.write()
-
-        print("name is:")
-        print(tldp.data.name)
+        tldp.save()
         self.assertTrue(tldp.data.name.endswith('/myproductid.gif'))
 
         # Check the actual data file
@@ -498,3 +500,23 @@ class TimelapseTestCase(TestCase):
         tldp = self.create_timelapse_dataproduct(self.prods)
         with self.assertRaises(DateFieldNotFoundError):
             tldp.write()
+
+    def test_make_timelapse_wrapper(self):
+        tldp = self.create_timelapse_dataproduct(self.prods)
+        # Cause an 'expected' error by patching date field: should get proper
+        # failure message
+        with patch('tom_education.models.TimelapseDataProduct.FITS_DATE_FIELD', new='hello') as _mock:
+            make_timelapse(tldp.pk)
+            tldp.refresh_from_db()
+            self.assertEqual(tldp.status, TIMELAPSE_FAILED)
+            self.assertTrue(isinstance(tldp.failure_message, str))
+            self.assertTrue(tldp.failure_message.startswith('Could not find observation date'))
+
+        # Cause an 'unexpected' error: should get generic failure message
+        tldp2 = self.create_timelapse_dataproduct(self.prods)
+        with patch('tom_education.models.imageio', new='hello') as _mock:
+            make_timelapse(tldp2.pk)
+            tldp2.refresh_from_db()
+            self.assertEqual(tldp2.status, TIMELAPSE_FAILED)
+            self.assertTrue(isinstance(tldp2.failure_message, str))
+            self.assertEqual(tldp2.failure_message, 'An unexpected error occurred')

@@ -201,6 +201,9 @@ class TimelapseStatusApiView(ListView):
 
         for tl_prod in qs:
             prod_dict = {'product_id': tl_prod.product_id}
+            if tl_prod.status == TIMELAPSE_FAILED:
+                prod_dict['failure_message'] = tl_prod.failure_message or None
+
             response_dict['timelapses'][tl_prod.status].append(prod_dict)
         # Sort each list by product ID so we have a consistent order
         for status in statuses:

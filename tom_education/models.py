@@ -81,6 +81,7 @@ class TimelapseDataProduct(DataProduct):
     status = models.CharField(
         max_length=10, choices=STATUS_CHOICES, blank=True, default=TIMELAPSE_PENDING
     )
+    failure_message = models.CharField(max_length=255, blank=True)
     frames = models.ManyToManyField(DataProduct, related_name='timelapse')
     fmt = models.CharField(max_length=10, choices=FORMAT_CHOICES, default=TIMELAPSE_GIF, blank=False)
     fps = models.FloatField(default=10, blank=False)
@@ -97,13 +98,13 @@ class TimelapseDataProduct(DataProduct):
         self.clean()
         # Create empty placeholder data file
         if not self.data:
-            print("creating empty file")
             self.data.save(self.get_filename(), File(BytesIO()), save=False)
         super().save(*args, **kwargs)
 
     def write(self):
         """
-        Create the timelapse and write the file to the data attribute
+        Create the timelapse and write the file to the data attribute. Note
+        that this does not save the model instance.
         """
         if not self.frames.all().exists():
             raise ValueError('Empty data products list')
@@ -113,7 +114,6 @@ class TimelapseDataProduct(DataProduct):
         self.data.save(self.get_filename(), File(buf), save=False)
         # Update status
         self.status = TIMELAPSE_CREATED
-        self.save()
 
     def _write(self, outfile):
         """
@@ -159,6 +159,9 @@ class TimelapseDataProduct(DataProduct):
                 except KeyError:
                     continue
                 return datetime.fromisoformat(dt_str)
-            raise DateFieldNotFoundError(product.data.name)
+            raise DateFieldNotFoundError(
+                'Could not find observation date in FITS header \'{}\' in file \'{}\''
+                .format(self.FITS_DATE_FIELD, product.data.name)
+            )
 
         return sorted(self.frames.all(), key=sort_key)
