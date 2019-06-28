@@ -17,7 +17,6 @@ setup(
         'tomtoolkit',
         'imageio-ffmpeg==0.3.0',
         'imageio @ git+https://github.com/imageio/imageio@7d49d41d6400704e2b33ca858343e7c04a940559',
-        'django-dramatiq==0.7.1',
     ],
     packages=find_packages(),
     include_package_data=True,

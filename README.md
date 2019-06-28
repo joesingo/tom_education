@@ -42,7 +42,7 @@ pip install tom_education
 ```
 
 3. Add `tom_education` to `INSTALLED_APPS` in `settings.py` (make sure it
-  appears *before* the other `tom_*` apps):
+  appears *before* the other `tom_*` apps).
 
 ```python
 INSTALLED_APPS = [
@@ -56,7 +56,13 @@ INSTALLED_APPS = [
 ]
 ```
 
-If using Dramatiq for timelapses, add `django_dramatiq` here too.
+If using Dramatiq for timelapses, install `django_dramatiq` and add to
+`INSTALLED_APPS` also:
+
+```
+pip install django_dramatiq
+pip install redis  # if using Redis
+```
 
 4. Set `ROOT_URLCONF` in `settings.py` to `mytom.urls`, where `mytom` is the
    name of the project created in step 1.
@@ -82,6 +88,11 @@ DRAMATIQ_BROKER = {
         'dramatiq.middleware.AgeLimit',
         'dramatiq.middleware.TimeLimit',
         'dramatiq.middleware.Callbacks'
+        'dramatiq.middleware.Retries',
+        'django_dramatiq.middleware.AdminMiddleware',
+        'django_dramatiq.middleware.DbConnectionsMiddleware',
+    ]
+}
 ```
 
 7. Include `tom_education` and `tom_common` in `urls.py`:
