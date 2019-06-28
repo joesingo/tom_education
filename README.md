@@ -28,7 +28,16 @@ can optionally be done by separate worker processes in a queue using
 [Redis](https://redis.io/) or [RabbitMQ](https://www.rabbitmq.com/). See the
 instructions below for setting up Dramatiq with `tom_education`.
 
-**TODO:** document how to start Dramatiq workers
+To start the worker processes to create timelapses, using the `rundramatiq`
+management command from `django_dramatiq` after following the setup
+instructions below:
+
+```
+python manage.py rundramatiq
+```
+
+(If this fails with an error message regarding `--watch`, try `pip install
+watchdog_gevent` first)
 
 ## Installation
 
