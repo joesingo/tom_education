@@ -10,12 +10,14 @@ from django.conf import settings
 from django.core.management import call_command
 from django.core.management.base import BaseCommand
 from django.template.loader import get_template
+from tom_dataproducts.models import DataProductGroup
 
 
 class Command(BaseCommand):
     help = 'Create settings.py and urls.py for tom_education'
 
     project_name = os.path.basename(settings.BASE_DIR)
+    timelapse_group_name = 'Timelapse quality'
 
     def get_source_file_path(self, name):
         return os.path.join(settings.BASE_DIR, self.project_name, name)
@@ -28,7 +30,10 @@ class Command(BaseCommand):
         sys.stdout.flush()
 
     def handle(self, *args, **options):
-        context = {'project_name': self.project_name}
+        context = {
+            'project_name': self.project_name,
+            'timelapse_group_name': self.timelapse_group_name,
+        }
         rendered_settings = get_template('tom_education/settings.py.tmpl').render(context)
         rendered_urls = get_template('tom_education/urls.py.tmpl').render({})
 
@@ -46,6 +51,10 @@ class Command(BaseCommand):
 
         self.status('Running migrations... ')
         call_command('migrate', verbosity=0, interactive=False)
+        self.ok()
+
+        self.status('Creating timelapse data product group... ')
+        DataProductGroup.objects.get_or_create(name=self.timelapse_group_name)
         self.ok()
 
         self.stdout.write(self.style.SUCCESS('Finished'))
