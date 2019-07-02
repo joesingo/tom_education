@@ -1,5 +1,5 @@
 from datetime import datetime
-from io import BytesIO
+from io import BytesIO, StringIO
 import json
 import os.path
 from unittest.mock import patch
@@ -8,6 +8,7 @@ from astropy.io import fits
 from django import forms
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import File
+from django.core.management import call_command
 from django.db import transaction
 from django.urls import reverse
 from django.test import TestCase, override_settings
@@ -15,9 +16,9 @@ from django.contrib.auth.models import User
 from guardian.shortcuts import assign_perm
 import imageio
 import numpy as np
-from tom_dataproducts.models import DataProduct, IMAGE_FILE
+from tom_dataproducts.models import DataProduct, DataProductGroup, IMAGE_FILE
 from tom_targets.models import Target
-from tom_observations.tests.factories import TargetFactory, ObservingRecordFactory
+from tom_observations.tests.factories import ObservingRecordFactory
 from tom_observations.tests.utils import FakeFacility, FakeFacilityForm
 
 from tom_education.forms import TimelapseCreateForm
@@ -61,7 +62,7 @@ class ObservationTemplateTestCase(TestCase):
         super().setUpClass()
         cls.user = User.objects.create(username='someuser', password='somepass', is_staff=True)
         cls.non_staff = User.objects.create(username='another', password='aaa')
-        cls.target = Target.objects.create(identifier='mytarget', name='my target')
+        cls.target = Target.objects.create(identifier='target123', name='my target')
 
     def setUp(self):
         super().setUp()
@@ -220,7 +221,7 @@ class TimelapseTestCase(TestCase):
     def setUpClass(cls):
         super().setUpClass()
 
-        cls.target = TargetFactory.create()
+        cls.target = Target.objects.create(identifier='target123', name='my target')
         cls.observation_record = ObservingRecordFactory.create(
             target_id=cls.target.id,
             facility=FakeFacility.name,
@@ -289,7 +290,7 @@ class TimelapseTestCase(TestCase):
         self.assertEqual(data.read(4), b'\x1a\x45\xdf\xa3')
 
     @override_settings(TOM_EDUCATION_TIMELAPSE_SETTINGS={'format': 'gif', 'fps': 16})
-    @patch('tom_education.views.datetime')
+    @patch('tom_education.models.datetime')
     def test_create_timelapse_form(self, dt_mock):
         """
         Test the view and form, and check that the timelapse methods are called
@@ -341,8 +342,6 @@ class TimelapseTestCase(TestCase):
 
         # Status should be set
         self.assertTrue(tldp.status)
-
-        # TODO: store format and FPS in the model and check their values here
 
     def test_timelapse_status_api(self):
         tl_prod = TimelapseDataProduct.objects.create(
@@ -481,11 +480,12 @@ class TimelapseTestCase(TestCase):
 
     def test_write_to_data_attribute(self):
         tldp = self.create_timelapse_dataproduct(self.prods)
-        tldp.product_id = 'myproductid'
+        tldp.product_id = 'myproductid_{}'.format(datetime.now().strftime('%s'))
         tldp.save()
         tldp.write()
         tldp.save()
-        self.assertTrue(tldp.data.name.endswith('/myproductid.gif'))
+        exp_filename = '/' + tldp.product_id + '.gif'
+        self.assertTrue(tldp.data.name.endswith(exp_filename), tldp.data.name)
 
         # Check the actual data file
         self.assert_gif_data(tldp.data.file)
@@ -520,3 +520,53 @@ class TimelapseTestCase(TestCase):
             self.assertEqual(tldp2.status, TIMELAPSE_FAILED)
             self.assertTrue(isinstance(tldp2.failure_message, str))
             self.assertEqual(tldp2.failure_message, 'An unexpected error occurred')
+
+    @override_settings(TOM_EDUCATION_TIMELAPSE_SETTINGS={'format': 'gif', 'fps': 16},
+                       TOM_EDUCATION_TIMELAPSE_GROUP_NAME='timelapsey')
+    def test_management_command(self):
+        pre_tldp_count = TimelapseDataProduct.objects.count()
+        self.assertEqual(pre_tldp_count, 0)
+
+        # Make first 3 products in timelapse group, but have the third one a
+        # raw file
+        group = DataProductGroup.objects.create(name='timelapsey')
+        for prod in self.prods[:3]:
+            prod.group.add(group)
+            prod.save()
+        rawfilename = 'somerawfile_{}.e91.fits.fz'.format(datetime.now().strftime('%s'))
+        self.prods[2].data.save(rawfilename, File(BytesIO()), save=True)
+
+        # Make a product in the group but for a different target: it should
+        # not be included in the timelapse
+        other_target = Target.objects.create(identifier='someothertarget')
+        other_prod = DataProduct.objects.create(product_id='someotherproduct', target=other_target)
+        other_prod.group.add(group)
+        other_prod.save()
+
+        buf = StringIO()
+        call_command('create_timelapse', self.target.pk, stdout=buf)
+
+        # Check timelapse object created
+        post_tldp_count = TimelapseDataProduct.objects.count()
+        self.assertEqual(post_tldp_count, pre_tldp_count + 1)
+
+        # Check the timelapse itself
+        tldp = TimelapseDataProduct.objects.all()[0]
+        self.assertEqual(tldp.target, self.target)
+        self.assertEqual(tldp.status, TIMELAPSE_CREATED)
+        self.assertEqual(set(tldp.frames.all()), set(self.prods[:2]))
+        self.assert_gif_data(tldp.data.file)
+
+        # Check the command output
+        output = buf.getvalue()
+        self.assertTrue('Creating timelapse of 2 files for target target123 (my target)...' in output)
+        self.assertTrue('Created timelapse' in output)
+
+    def test_management_command_no_dataproducts(self):
+        buf = StringIO()
+        call_command('create_timelapse', self.target.pk, stdout=buf)
+        output = buf.getvalue()
+        self.assertTrue('Nothing to do' in output, 'Output was: {}'.format(output))
+        self.assertEqual(TimelapseDataProduct.objects.count(), 0)
+        # The timelapse group should have been created
+        self.assertEqual(DataProductGroup.objects.count(), 1)

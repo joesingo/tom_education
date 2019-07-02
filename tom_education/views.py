@@ -2,7 +2,6 @@ from datetime import datetime
 import json
 
 from django.core.exceptions import PermissionDenied
-from django.conf import settings
 from django.contrib import messages
 from django.db.utils import IntegrityError
 from django.http import JsonResponse
@@ -10,7 +9,7 @@ from django.utils.http import urlencode
 from django.views.generic import ListView
 from django.views.generic.edit import FormMixin
 from django.shortcuts import redirect, reverse
-from tom_dataproducts.models import DataProduct, IMAGE_FILE
+from tom_dataproducts.models import DataProduct
 from tom_observations.views import ObservationCreateView
 from tom_targets.models import Target
 from tom_targets.views import TargetDetailView
@@ -152,27 +151,8 @@ class TimelapseTargetDetailView(FormMixin, TargetDetailView):
             DataProduct.objects.get(product_id=pid)
             for pid, checked in form.cleaned_data.items() if checked
         }
-
-        tl_settings = getattr(settings, 'TOM_EDUCATION_TIMELAPSE_SETTINGS', {})
-        fmt = tl_settings.get('format')
-        fps = tl_settings.get('fps')
-
-        # Create a TimelapseDataProduct
         target = self.get_object()
-        now = datetime.now()
-        date_str = now.strftime('%Y-%m-%d-%H%M%S')
-        product_id = 'timelapse_{}_{}'.format(target.identifier, date_str)
-        tl_prod = TimelapseDataProduct.objects.create(
-            product_id=product_id,
-            target=target,
-            tag=IMAGE_FILE[0],
-            status=TIMELAPSE_PENDING,
-            fmt=fmt,
-            fps=fps,
-        )
-        tl_prod.frames.add(*products)
-        tl_prod.save()
-
+        tl_prod = TimelapseDataProduct.create_timestamped(target, products)
         make_timelapse.send(tl_prod.pk)
         return JsonResponse({'ok': True})
 

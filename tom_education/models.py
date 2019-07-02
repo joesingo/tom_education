@@ -3,12 +3,13 @@ from io import BytesIO
 from urllib.parse import urlparse, parse_qs, urlunparse
 
 from astropy.io import fits
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.files import File
 from django.db import models
 from django.utils.http import urlencode
 import imageio
-from tom_dataproducts.models import DataProduct
+from tom_dataproducts.models import DataProduct, IMAGE_FILE
 from tom_targets.models import Target
 
 
@@ -165,3 +166,30 @@ class TimelapseDataProduct(DataProduct):
             )
 
         return sorted(self.frames.all(), key=sort_key)
+
+    @classmethod
+    def create_timestamped(cls, target, frames):
+        """
+        Create and return a timelapse for the given target and frames, where
+        format/FPS settings are taken from settings.py and the current date and
+        time is used to construct the product ID
+        """
+        tl_settings = getattr(settings, 'TOM_EDUCATION_TIMELAPSE_SETTINGS', {})
+        fmt = tl_settings.get('format')
+        fps = tl_settings.get('fps')
+
+        now = datetime.now()
+        date_str = now.strftime('%Y-%m-%d-%H%M%S')
+        product_id = 'timelapse_{}_{}'.format(target.identifier, date_str)
+
+        tl = TimelapseDataProduct.objects.create(
+            product_id=product_id,
+            target=target,
+            tag=IMAGE_FILE[0],
+            status=TIMELAPSE_PENDING,
+            fmt=fmt,
+            fps=fps,
+        )
+        tl.frames.add(*frames)
+        tl.save()
+        return tl

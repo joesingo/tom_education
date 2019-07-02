@@ -39,6 +39,19 @@ python manage.py rundramatiq
 (If this fails with an error message regarding `--watch`, try `pip install
 watchdog_gevent` first)
 
+### Management Command
+
+Timelapses can also be created through the management command `create_timelapses`.
+
+```
+./manage.py create_timelapse <target PK>
+```
+
+This will create a timelapse for all reduced data products associated with the
+given target that are contained in the data product group 'Timelapse quality'.
+This group name can be changed by setting `TOM_EDUCATION_TIMELAPSE_GROUP_NAME`
+in `settings.py`.
+
 ## Installation
 
 1. Set up a TOM following the [getting started guide](https://tomtoolkit.github.io/docs/getting_started).

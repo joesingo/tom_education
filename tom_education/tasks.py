@@ -43,5 +43,3 @@ def make_timelapse(tl_prod_pk):
         tl_prod.status = TIMELAPSE_FAILED
 
     tl_prod.save()
-
-    print('exiting task')
