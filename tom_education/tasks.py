@@ -42,7 +42,6 @@ def make_timelapse(tl_prod_pk):
         tl_prod.failure_message = failure_message
         tl_prod.status = TIMELAPSE_FAILED
 
-    # TODO: handle DB locked problem
     tl_prod.save()
 
     print('exiting task')
