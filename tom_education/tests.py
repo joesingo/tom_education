@@ -24,7 +24,8 @@ from tom_observations.tests.utils import FakeFacility, FakeFacilityForm
 from tom_education.forms import TimelapseCreateForm
 from tom_education.models import (
     ObservationTemplate, TimelapseDataProduct, DateFieldNotFoundError,
-    TIMELAPSE_CREATED, TIMELAPSE_PENDING, TIMELAPSE_FAILED
+    TIMELAPSE_CREATED, TIMELAPSE_PENDING, TIMELAPSE_FAILED,
+    TIMELAPSE_WEBM
 )
 from tom_education.tasks import make_timelapse
 
@@ -347,7 +348,8 @@ class TimelapseTestCase(TestCase):
         tl_prod = TimelapseDataProduct.objects.create(
             product_id='hello',
             target=self.target,
-            status=TIMELAPSE_PENDING
+            status=TIMELAPSE_PENDING,
+            fmt=TIMELAPSE_WEBM
         )
         failed_tl_prod = TimelapseDataProduct.objects.create(
             product_id='ohno',
@@ -357,15 +359,23 @@ class TimelapseTestCase(TestCase):
         )
         url = reverse('tom_education:timelapse_status_api', kwargs={'target': self.target.pk})
 
+        # Construct the dicts representing timelapses expected in the JSON
+        # response
+        hello_prod_dict = {
+            'product_id': 'hello',
+            'filename': 'hello.webm'
+        }
+        failed_prod_dict = {
+            'product_id': 'ohno',
+            'filename': 'ohno.gif',
+            'failure_message': 'oops'
+        }
+
         response1 = self.client.get(url)
         self.assertEqual(response1.status_code, 200)
         self.assertEqual(response1.json(), {
             'ok': True,
-            'timelapses': {
-                'pending': [{'product_id': 'hello'}],
-                'created': [],
-                'failed': [{'product_id': 'ohno', 'failure_message': 'oops'}]
-            }
+            'timelapses': {'pending': [hello_prod_dict], 'created': [], 'failed': [failed_prod_dict]}
         })
 
         tl_prod.status = TIMELAPSE_CREATED
@@ -374,11 +384,7 @@ class TimelapseTestCase(TestCase):
         self.assertEqual(response2.status_code, 200)
         self.assertEqual(response2.json(), {
             'ok': True,
-            'timelapses': {
-                'pending': [],
-                'created': [{'product_id': 'hello'}],
-                'failed': [{'product_id': 'ohno', 'failure_message': 'oops'}]
-            }
+            'timelapses': {'pending': [], 'created': [hello_prod_dict], 'failed': [failed_prod_dict]}
         })
 
         tl_prod.status = TIMELAPSE_FAILED
@@ -388,12 +394,10 @@ class TimelapseTestCase(TestCase):
         self.assertEqual(response3.json(), {
             'ok': True,
             'timelapses': {
-                'pending': [],
-                'created': [],
+                'pending': [], 'created': [],
                 # When multiple timelapses in the same state, they should be
-                # sorted by product ID
-                'failed': [{'product_id': 'hello', 'failure_message': None},
-                           {'product_id': 'ohno', 'failure_message': 'oops'}]
+                # sorted by product ID ('hello' and 'ohno' in this case)
+                'failed': [dict(hello_prod_dict, failure_message=None), failed_prod_dict]
             }
         })
 

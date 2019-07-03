@@ -180,7 +180,10 @@ class TimelapseStatusApiView(ListView):
             return JsonResponse({'ok': False, 'error': 'Target not found'}, status=404)
 
         for tl_prod in qs:
-            prod_dict = {'product_id': tl_prod.product_id}
+            prod_dict = {
+                'product_id': tl_prod.product_id,
+                'filename': tl_prod.get_filename()
+            }
             if tl_prod.status == TIMELAPSE_FAILED:
                 prod_dict['failure_message'] = tl_prod.failure_message or None
 
