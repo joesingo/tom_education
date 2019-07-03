@@ -4,13 +4,15 @@ const DISPLAY_STAUSES = {
     'created': 'Created',
     'failed': 'Failed'
 };
+const PRODUCT_CHECKBOXES_SELECTOR = 'input.timelapse-checkbox';
+
+function deselectAllProducts() {
+    $(PRODUCT_CHECKBOXES_SELECTOR).prop('checked', false);
+}
 
 function selectAllProducts(reduced_only) {
-    // Uncheck all boxes first
-    var all_boxes = 'input.timelapse-checkbox';
-    $(all_boxes).prop('checked', false);
-
-    var selector = all_boxes;
+    deselectAllProducts();
+    var selector = PRODUCT_CHECKBOXES_SELECTOR;
     if (reduced_only) {
         selector += '.reduced';
     }
@@ -113,6 +115,7 @@ $('#timelapse-create-form').submit(function(event) {
     var $form = $(this);
     $.post($form.attr('action'), $form.serialize(), function(data) {
         if (data.ok) {
+            deselectAllProducts();
             startStatusPolling($form.data('target'));
             // Scroll down to timelapse section
             window.location.href = '#timelapse-section';
