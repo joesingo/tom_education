@@ -574,3 +574,37 @@ class TimelapseTestCase(TestCase):
         self.assertEqual(TimelapseDataProduct.objects.count(), 0)
         # The timelapse group should have been created
         self.assertEqual(DataProductGroup.objects.count(), 1)
+
+    def test_dataproduct_table(self):
+        """
+        Check that only created timelapses are shown in the data product table
+        in the target detail view
+        """
+        # Create one timelapse for each status
+        pending = TimelapseDataProduct.objects.create(
+            product_id='pend',
+            target=self.target,
+            status=TIMELAPSE_PENDING
+        )
+        created = TimelapseDataProduct.objects.create(
+            product_id='cre',
+            target=self.target,
+            status=TIMELAPSE_CREATED
+        )
+        failed = TimelapseDataProduct.objects.create(
+            product_id='fail',
+            target=self.target,
+            status=TIMELAPSE_FAILED
+        )
+        url = reverse('tom_education:target_detail', kwargs={'pk': self.target.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+
+        expected = self.prods + [created]
+        unexpected = [pending, failed]
+        for prod in expected:
+            filename = prod.get_file_name()
+            self.assertIn(filename, response.content.decode(), filename)
+        for prod in unexpected:
+            filename = prod.get_file_name()
+            self.assertNotIn(filename, response.content.decode(), filename)
