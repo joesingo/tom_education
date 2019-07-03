@@ -33,6 +33,9 @@ def make_timelapse(tl_prod_pk):
         tl_prod.write()
     except DateFieldNotFoundError as ex:
         failure_message = str(ex)
+    except ValueError as ex:
+        print('warning: ValueError: {}'.format(ex))
+        failure_message = 'Invalid parameters. Are all images the same size?'
     except Exception as ex:
         print('warning: unknown error occurred: {}'.format(ex))
         failure_message = 'An unexpected error occurred'
