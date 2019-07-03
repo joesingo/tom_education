@@ -30,7 +30,7 @@ class Command(BaseCommand):
             raise CommandError('Target \'{}\' does not exist'.format(target_pk))
 
         # Get the 'good quality' group
-        group_name = getattr(settings, 'TOM_EDUCATION_TIMELAPSE_GROUP_NAME', 'Timelapse quality')
+        group_name = settings.TOM_EDUCATION_TIMELAPSE_GROUP_NAME
         try:
             group, _ = DataProductGroup.objects.get_or_create(name=group_name)
         except DataProductGroup.MultipleObjectsReturned:

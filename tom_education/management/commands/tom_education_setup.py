@@ -17,7 +17,7 @@ class Command(BaseCommand):
     help = 'Create settings.py and urls.py for tom_education'
 
     project_name = os.path.basename(settings.BASE_DIR)
-    timelapse_group_name = 'Timelapse quality'
+    timelapse_group_name = 'Good quality data'
 
     def get_source_file_path(self, name):
         return os.path.join(settings.BASE_DIR, self.project_name, name)

@@ -89,6 +89,6 @@ Timelapses can also be created through the management command `create_timelapses
 ```
 
 This will create a timelapse for all reduced data products associated with the
-given target that are contained in the data product group 'Timelapse quality'.
+given target that are contained in the data product group 'Good quality data'.
 This group name can be changed by setting `TOM_EDUCATION_TIMELAPSE_GROUP_NAME`
 in `settings.py`.
