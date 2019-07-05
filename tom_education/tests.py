@@ -21,7 +21,7 @@ from tom_targets.models import Target
 from tom_observations.tests.factories import ObservingRecordFactory
 from tom_observations.tests.utils import FakeFacility, FakeFacilityForm
 
-from tom_education.forms import TimelapseCreateForm
+from tom_education.forms import DataProductActionForm
 from tom_education.models import (
     ObservationTemplate, TimelapseDataProduct, DateFieldNotFoundError,
     TIMELAPSE_CREATED, TIMELAPSE_PENDING, TIMELAPSE_FAILED,
@@ -294,8 +294,8 @@ class TimelapseTestCase(TestCase):
     @patch('tom_education.models.datetime')
     def test_create_timelapse_form(self, dt_mock):
         """
-        Test the view and form, and check that the timelapse methods are called
-        with the correct arguments
+        Test the view and form, and check that the timelapse is created
+        successfully
         """
         dt_mock.now.return_value = datetime(
             year=2019, month=1, day=2, hour=3, minute=4, second=5, microsecond=6
@@ -305,8 +305,8 @@ class TimelapseTestCase(TestCase):
         url = reverse('tom_education:target_detail', kwargs={'pk': self.target.pk})
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
-        self.assertIn('timelapse_form', response.context)
-        self.assertIsInstance(response.context['timelapse_form'], TimelapseCreateForm)
+        self.assertIn('dataproducts_form', response.context)
+        self.assertIsInstance(response.context['dataproducts_form'], DataProductActionForm)
 
         self.assertIn(b'Select all', response.content)
         self.assertIn(b'Select reduced', response.content)
@@ -316,6 +316,7 @@ class TimelapseTestCase(TestCase):
 
         # POST form
         response2 = self.client.post(url, {
+            'action': 'create_timelapse',
             'test0': 'on',
             'test3': 'on',
             'test2': 'on',
@@ -407,11 +408,14 @@ class TimelapseTestCase(TestCase):
         self.assertEqual(response4.json(), {'ok': False, 'error': 'Target not found'})
 
     def test_empty_form(self):
-        form = TimelapseCreateForm(target=self.target, data={})
+        form = DataProductActionForm(target=self.target, data={})
         self.assertFalse(form.is_valid())
 
-        form2 = TimelapseCreateForm(target=self.target, data={'test0': 'on'})
-        self.assertTrue(form2.is_valid())
+        form2 = DataProductActionForm(target=self.target, data={'action': 'blah'})
+        self.assertFalse(form2.is_valid())
+
+        form3 = DataProductActionForm(target=self.target, data={'test0': 'on', 'action': 'blah'})
+        self.assertTrue(form3.is_valid())
 
     def test_fits_file_sorting(self):
         correct_order = [self.prods[0], self.prods[1], self.prods[3], self.prods[2]]

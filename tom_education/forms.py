@@ -60,20 +60,23 @@ def make_templated_form(base_class):
     return F
 
 
-class TimelapseCreateForm(forms.Form):
+class DataProductActionForm(forms.Form):
     """
-    Form for creating a timelapse from a sequence of DataProducts containing
-    images
+    Form for selecting a group of data products to perform some action on them
     """
-    # Note: fields are added dynamically based on the target passed to the
-    # constructor
+    action = forms.CharField(required=True)
+    # Note: other fields are added dynamically based on the target passed to
+    # the constructor
     def __init__(self, *args, **kwargs):
         target = kwargs.pop('target')
         super().__init__(*args, **kwargs)
 
+        self.product_ids = set([])
+
         for dp in target.dataproduct_set.all():
+            self.product_ids.add(dp.product_id)
             self.fields[dp.product_id] = forms.fields.BooleanField(required=False)
 
     def clean(self):
-        if not any(self.cleaned_data.values()):
+        if not any(self.cleaned_data.get(pid) for pid in self.product_ids):
             raise ValidationError('No data product selected')

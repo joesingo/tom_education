@@ -19,10 +19,16 @@
 
 <h4>Data</h4>
 
-<form method="POST" action="" id="timelapse-create-form" data-target="{{ target.pk }}">
+<form method="POST" action="" id="dataproduct-action-form" data-target="{{ target.pk }}">
+  <input type="hidden" name="action" value="" />
   {% csrf_token %}
   <p>
-    <input type="submit" class="btn btn-primary" value="Create timelapse from selected" />
+    <!-- Actions -->
+    <input type="submit" name="create_timelapse" class="btn btn-primary"
+           value="Create timelapse from selected" />
+    <input type="submit" name="view_gallery" class="btn btn-primary"
+           value="View gallery" />
+
     <input type="button" class="btn btn-secondary" onclick="selectAllProducts()" value="Select all" />
     <input type="button" class="btn btn-secondary" onclick="selectAllProducts(true)" value="Select reduced" />
   </p>
@@ -31,11 +37,11 @@
     <tbody>
     {% for product in products %}
       <tr>
-        {# Show checkbox for inclusion of this product in the timelapse #}
+        {# Show checkbox for performing action on this product #}
         <td>
           {%  if 'fits' in product.get_file_name or product.tag == 'fits_file' %}
               <input type="checkbox" name="{{ product.product_id }}"
-                     class="timelapse-checkbox {% if 'e91.fits.fz' not in product.data.name %}reduced{% endif %}" />
+                     class="product-action-checkbox {% if 'e91.fits.fz' not in product.data.name %}reduced{% endif %}" />
           {% endif %}
         </td>
 
@@ -62,4 +68,4 @@
   </table>
 </form>
 
-<script type='text/javascript' src='{% static 'tom_education/timelapse_form.js' %}'></script>
+<script type='text/javascript' src='{% static 'tom_education/dataproduct_action_form.js' %}'></script>

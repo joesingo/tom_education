@@ -4,7 +4,7 @@ import json
 from django.core.exceptions import PermissionDenied
 from django.contrib import messages
 from django.db.utils import IntegrityError
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponseBadRequest
 from django.utils.http import urlencode
 from django.views.generic import ListView
 from django.views.generic.edit import FormMixin
@@ -14,7 +14,7 @@ from tom_observations.views import ObservationCreateView
 from tom_targets.models import Target
 from tom_targets.views import TargetDetailView
 
-from tom_education.forms import make_templated_form, TimelapseCreateForm
+from tom_education.forms import make_templated_form, DataProductActionForm
 from tom_education.models import (
     ObservationTemplate, TimelapseDataProduct, TIMELAPSE_PENDING, TIMELAPSE_CREATED,
     TIMELAPSE_FAILED
@@ -112,12 +112,15 @@ class TemplatedObservationCreateView(ObservationCreateView):
         return super().form_valid(form)
 
 
-class TimelapseTargetDetailView(FormMixin, TargetDetailView):
+class ActionableTargetDetailView(FormMixin, TargetDetailView):
     """
-    Extend the target detail view to add a form to create a timelapse from data
-    products
+    Extend the target detail view to add a form to select a group of data
+    products and perform an action on them.
+
+    A method `handle_<name>(products, form)` is called to handle the form
+    submission, where `<name>` is the value of the action field in the form.
     """
-    form_class = TimelapseCreateForm
+    form_class = DataProductActionForm
 
     def get_success_url(self):
         return reverse('tom_targets:detail', kwargs={'pk': self.get_object().pk})
@@ -130,7 +133,7 @@ class TimelapseTargetDetailView(FormMixin, TargetDetailView):
     def get_context_data(self, *args, **kwargs):
         self.object = self.get_object()
         context = super().get_context_data(*args, **kwargs)
-        context['timelapse_form'] = self.get_form()
+        context['dataproducts_form'] = self.get_form()
         return context
 
     def post(self, _request, *args, **kwargs):
@@ -139,7 +142,7 @@ class TimelapseTargetDetailView(FormMixin, TargetDetailView):
             return self.form_valid(form)
         # Form is not rendered in the template, so add form errors as messages
         # Note: this discards information about which field each error relates
-        # to, since errors are not field-specific for the timelapse form
+        # to
         for err_list in form.errors.values():
             for err_msg in err_list:
                 messages.error(self.request, err_msg)
@@ -149,12 +152,22 @@ class TimelapseTargetDetailView(FormMixin, TargetDetailView):
         # Construct set of data products that were selected
         products = {
             DataProduct.objects.get(product_id=pid)
-            for pid, checked in form.cleaned_data.items() if checked
+            for pid, checked in form.cleaned_data.items() if pid in form.product_ids and checked
         }
+        try:
+            method = getattr(self, 'handle_{}'.format(form.data['action']))
+        except AttributeError:
+            return HttpResponseBadRequest('Invalid action \'{}\''.format(form.data['action']))
+        return method(products, form)
+
+    def handle_create_timelapse(self, products, form):
         target = self.get_object()
         tl_prod = TimelapseDataProduct.create_timestamped(target, products)
         make_timelapse.send(tl_prod.pk)
         return JsonResponse({'ok': True})
+
+    def handle_view_gallery(self, products, form):
+        return JsonResponse({'prods': [p.pk for p in products], 'action': 'view that gallery!'})
 
 
 class TimelapseStatusApiView(ListView):

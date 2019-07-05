@@ -4,7 +4,8 @@ const DISPLAY_STAUSES = {
     'created': 'Created',
     'failed': 'Failed'
 };
-const PRODUCT_CHECKBOXES_SELECTOR = 'input.timelapse-checkbox';
+const PRODUCT_CHECKBOXES_SELECTOR = 'input.product-action-checkbox';
+var $FORM = $('#dataproduct-action-form');
 
 function deselectAllProducts() {
     $(PRODUCT_CHECKBOXES_SELECTOR).prop('checked', false);
@@ -56,8 +57,6 @@ function showTimelapses(obj) {
     $('.product-filename').each(function(index) {
         filenames[this.innerText] = true;
     });
-    console.log("existing filenames:");
-    console.log(filenames);
 
     var $wrapper = $('#timelapse-table-wrapper');
     var $empty_message = $wrapper.find("p");
@@ -107,17 +106,21 @@ function showError(msg) {
 }
 
 /*
- * Submit handler for timelapse creation form
+ * Submit handler for action form so we can create timelapses asynchronously
  */
-$('#timelapse-create-form').submit(function(event) {
-    event.preventDefault();
+$FORM.submit(function(event) {
+    var action = $FORM.find('input[type=submit][clicked=true]').attr('name');
+    $FORM.find('input[name=action]').val(action);
+    // For any action other than timelapse, submit form as usual
+    if (action !== 'create_timelapse') {
+        return;
+    }
 
-    var $form = $(this);
-    $.post($form.attr('action'), $form.serialize(), function(data) {
+    event.preventDefault();
+    $.post($FORM.attr('action'), $FORM.serialize() , function(data) {
         if (data.ok) {
             deselectAllProducts();
-            startStatusPolling($form.data('target'));
-            // Scroll down to timelapse section
+            // Scroll to timelapse section
             window.location.href = '#timelapse-section';
         }
         else {
@@ -128,3 +131,15 @@ $('#timelapse-create-form').submit(function(event) {
         showError('Failed to submit timelapse');
     });
 });
+
+/*
+ * Set a 'clicked' attribute on submit inputs when they are clicked, so that we
+ * can determine which action should be taken on form submission. Inspired by
+ * this: https://stackoverflow.com/a/5721762
+ */
+$FORM.find('input[type=submit]').click(function() {
+    $FORM.find('input[type=submit]').removeAttr('clicked');
+    $(this).attr('clicked', 'true');
+});
+
+startStatusPolling($FORM.data('target'));
