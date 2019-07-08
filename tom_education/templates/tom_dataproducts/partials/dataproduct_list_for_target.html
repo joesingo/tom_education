@@ -24,12 +24,14 @@
   {% csrf_token %}
   <p>
     <!-- Actions -->
-    <input type="submit" name="create_timelapse" class="btn btn-primary"
-           value="Create timelapse from selected" />
-    <input type="submit" name="view_gallery" class="btn btn-primary"
-           value="View gallery" />
+    {% buttons %}
+        <input type="submit" name="create_timelapse" class="btn btn-primary"
+               value="Create timelapse" />
+        <input type="submit" name="view_gallery" class="btn btn-primary"
+               value="View gallery" />
 
-    {% include "tom_education/dataproduct_selection_buttons.html" %}
+        {% include "tom_education/dataproduct_selection_buttons.html" %}
+    {% endbuttons %}
 
   </p>
   <table class="table table-striped">

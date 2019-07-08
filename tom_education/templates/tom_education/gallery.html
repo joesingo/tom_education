@@ -18,7 +18,10 @@
         {% csrf_token %}
         <input type="hidden" name="product_pks" value="{{ product_pks }}" />
 
-        {% include "tom_education/dataproduct_selection_buttons.html" %}
+        {% buttons %}
+            <input type="submit" class="btn btn-primary" value="Add to group" />
+            {% include "tom_education/dataproduct_selection_buttons.html" %}
+        {% endbuttons %}
 
         {% bootstrap_field form.group %}
         <div class="container">
@@ -43,10 +46,6 @@
         </div>
 
         <br />
-
-        {% buttons %}
-            <input type="submit" class="btn btn-primary" value="Add to group" />
-        {% endbuttons %}
     </form>
 {% endif %}
 
