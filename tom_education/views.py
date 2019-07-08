@@ -4,9 +4,9 @@ import json
 from django.core.exceptions import PermissionDenied
 from django.contrib import messages
 from django.db.utils import IntegrityError
-from django.http import JsonResponse, HttpResponseBadRequest
+from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseRedirect
 from django.utils.http import urlencode
-from django.views.generic import ListView
+from django.views.generic import ListView, FormView
 from django.views.generic.edit import FormMixin
 from django.shortcuts import redirect, reverse
 from tom_dataproducts.models import DataProduct
@@ -14,7 +14,7 @@ from tom_observations.views import ObservationCreateView
 from tom_targets.models import Target
 from tom_targets.views import TargetDetailView
 
-from tom_education.forms import make_templated_form, DataProductActionForm
+from tom_education.forms import make_templated_form, DataProductActionForm, GalleryForm
 from tom_education.models import (
     ObservationTemplate, TimelapseDataProduct, TIMELAPSE_PENDING, TIMELAPSE_CREATED,
     TIMELAPSE_FAILED
@@ -149,11 +149,7 @@ class ActionableTargetDetailView(FormMixin, TargetDetailView):
         return self.form_invalid(form)
 
     def form_valid(self, form):
-        # Construct set of data products that were selected
-        products = {
-            DataProduct.objects.get(product_id=pid)
-            for pid, checked in form.cleaned_data.items() if pid in form.product_ids and checked
-        }
+        products = form.get_selected_products()
         try:
             method = getattr(self, 'handle_{}'.format(form.data['action']))
         except AttributeError:
@@ -167,7 +163,77 @@ class ActionableTargetDetailView(FormMixin, TargetDetailView):
         return JsonResponse({'ok': True})
 
     def handle_view_gallery(self, products, form):
-        return JsonResponse({'prods': [p.pk for p in products], 'action': 'view that gallery!'})
+        # Redirect to gallery page with product PKs as GET params
+        product_pks = [str(p.pk) for p in products]
+        base = reverse('tom_education:gallery')
+        url = base + '?' + urlencode({'product_pks': ",".join(product_pks)})
+        return redirect(url)
+
+
+class GalleryView(FormView):
+    """
+    Show thumbnails for a number of data products and allow the user to add a
+    selection of them to a data product group
+    """
+    form_class = GalleryForm
+    template_name = 'tom_education/gallery.html'
+
+    def get_pks_string(self):
+        """
+        Return comma separated string of products PKs from GET or POST params
+        """
+        if self.request.method == 'GET':
+            obj = self.request.GET
+        else:
+            obj = self.request.POST
+        return obj.get('product_pks', '')
+
+    def get_products(self, pks_string):
+        try:
+            return self._products
+        except AttributeError:
+            pass
+
+        if pks_string:
+            pks = pks_string.split(',')
+            self._products = {DataProduct.objects.get(pk=int(pk)) for pk in pks}
+        else:
+            self._products = set([])
+        return self._products
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['products'] = self.get_products(self.get_pks_string())
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Comma separated PK string is required to construct form instance, so
+        # must be send in the POST request too. Put it in the context so it
+        # can be sent as a hidden field
+        pks_string = self.get_pks_string()
+        context['product_pks'] = pks_string
+
+        products = self.get_products(pks_string)
+        if products:
+            context['products'] = products
+            context['show_form'] = True
+        else:
+            messages.error(self.request, 'No data products provided')
+        return context
+
+    def form_valid(self, form):
+        selected = form.get_selected_products()
+        group = form.cleaned_data['group']
+        for product in selected:
+            product.group.add(group)
+            product.save()
+
+        # Redirect to group detail view
+        msg = 'Added {} data products to group \'{}\''.format(len(selected), group.name)
+        messages.success(self.request, msg)
+        url = reverse('tom_dataproducts:group-detail', kwargs={'pk': group.pk})
+        return HttpResponseRedirect(url)
 
 
 class TimelapseStatusApiView(ListView):

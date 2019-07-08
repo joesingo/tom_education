@@ -21,7 +21,7 @@ from tom_targets.models import Target
 from tom_observations.tests.factories import ObservingRecordFactory
 from tom_observations.tests.utils import FakeFacility, FakeFacilityForm
 
-from tom_education.forms import DataProductActionForm
+from tom_education.forms import DataProductActionForm, GalleryForm
 from tom_education.models import (
     ObservationTemplate, TimelapseDataProduct, DateFieldNotFoundError,
     TIMELAPSE_CREATED, TIMELAPSE_PENDING, TIMELAPSE_FAILED,
@@ -50,6 +50,18 @@ FAKE_FACILITIES = [
     'tom_education.tests.FakeTemplateFacility',
     'tom_education.tests.AnotherFakeFacility',
 ]
+
+
+def write_fits_image_file(data, date=None):
+    primary_hdu = fits.PrimaryHDU()
+    primary_hdu.header['XTENSION'] = 'IMAGE'
+    if date:
+        primary_hdu.header['DATE-OBS'] = date.isoformat()
+    img = fits.hdu.compressed.CompImageHDU(data)
+    hdul = fits.HDUList([primary_hdu, img])
+    buf = BytesIO()
+    hdul.writeto(buf)
+    return buf
 
 
 @override_settings(TOM_FACILITY_CLASSES=FAKE_FACILITIES)
@@ -245,23 +257,13 @@ class TimelapseTestCase(TestCase):
         cls.image_data[20, :] = np.array([10, 20, 30, 40])
 
         for i, date in enumerate(dates):
-            primary_hdu = fits.PrimaryHDU()
-            primary_hdu.header['XTENSION'] = 'IMAGE'
-            primary_hdu.header['DATE-OBS'] = date.isoformat()
-            # Create COMPRESSED image HDU, since this is the data we will need
-            # to deal with
-            img = fits.hdu.compressed.CompImageHDU(cls.image_data)
-
-            hdul = fits.HDUList([primary_hdu, img])
-            buf = BytesIO()
-            hdul.writeto(buf)
-
             product_id = 'test{}'.format(i)
             prod = DataProduct.objects.create(
                 product_id=product_id,
                 target=cls.target,
                 observation_record=cls.observation_record,
             )
+            buf = write_fits_image_file(cls.image_data, date)
             prod.data.save(product_id, File(buf), save=True)
             cls.prods.append(prod)
 
@@ -612,3 +614,73 @@ class TimelapseTestCase(TestCase):
         for prod in unexpected:
             filename = prod.get_file_name()
             self.assertNotIn(filename, response.content.decode(), filename)
+
+
+class GalleryTestCase(TestCase):
+    def setUp(self):
+        super().setUpClass()
+        self.url = reverse('tom_education:gallery')
+        self.target = Target.objects.create(identifier='target123', name='my target')
+        self.prods = []
+
+        image_data = np.ones((500, 4), dtype=np.float)
+        image_data[20, :] = np.array([10, 20, 30, 40])
+        for i in range(4):
+            product_id = 'test{}'.format(i)
+            prod = DataProduct.objects.create(
+                product_id=product_id,
+                target=self.target
+            )
+            buf = write_fits_image_file(image_data)
+            prod.data.save(product_id, File(buf), save=True)
+            self.prods.append(prod)
+
+    def test_no_products(self):
+        response = self.client.get(self.url)
+        self.assertIn('messages', response.context)
+        messages = list(response.context['messages'])
+        self.assertEqual(len(messages), 1)
+        self.assertEqual(str(messages[0]), 'No data products provided')
+        self.assertNotIn('show_form', response.context)
+
+    def test_context(self):
+        pks = ','.join(map(str, [self.prods[0].pk, self.prods[2].pk]))
+        response = self.client.get(self.url + '?product_pks={}'.format(pks))
+
+        self.assertIn('form', response.context)
+        form = response.context['form']
+        self.assertTrue(isinstance(form, GalleryForm))
+        self.assertEqual(form.product_ids, {self.prods[0].product_id, self.prods[2].product_id})
+
+        self.assertIn('product_pks', response.context)
+        self.assertEqual(response.context['product_pks'], pks)
+        self.assertIn('products', response.context)
+        self.assertEqual(response.context['products'], {self.prods[0], self.prods[2]})
+
+    def test_post(self):
+        mygroup = DataProductGroup.objects.create(name='mygroup')
+
+        response = self.client.post(self.url, {
+            'product_pks': ','.join([str(p.pk) for p in self.prods]),
+            'group': mygroup.pk,
+            'test0': 'on',
+            'test1': 'on',
+        })
+
+        # Products should have been added to the group
+        for prod in self.prods[:2]:
+            self.assertEqual(set(prod.group.all()), {mygroup})
+        # Check no other products were added
+        for prod in self.prods[2:]:
+            self.assertEqual(set(prod.group.all()), set([]))
+
+        # Should be redirected to group detail page
+        self.assertEqual(response.status_code, 302)
+        expected_url = '/dataproducts/data/group/{}/'.format(mygroup.pk)
+        self.assertEqual(response.url, expected_url)
+        # Check a success message is present
+        response2 = self.client.get(expected_url)
+        self.assertIn('messages', response2.context)
+        messages = list(response2.context['messages'])
+        self.assertEqual(len(messages), 1)
+        self.assertEqual(str(messages[0]), 'Added 2 data products to group \'mygroup\'')
