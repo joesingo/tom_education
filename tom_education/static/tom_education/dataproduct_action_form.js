@@ -4,21 +4,7 @@ const DISPLAY_STAUSES = {
     'created': 'Created',
     'failed': 'Failed'
 };
-const PRODUCT_CHECKBOXES_SELECTOR = 'input.product-action-checkbox';
 var $FORM = $('#dataproduct-action-form');
-
-function deselectAllProducts() {
-    $(PRODUCT_CHECKBOXES_SELECTOR).prop('checked', false);
-}
-
-function selectAllProducts(reduced_only) {
-    deselectAllProducts();
-    var selector = PRODUCT_CHECKBOXES_SELECTOR;
-    if (reduced_only) {
-        selector += '.reduced';
-    }
-    $(selector).prop('checked', true);
-}
 
 /*
  * Start periodically polling the API to get info on timelapses for the given
