@@ -1,6 +1,12 @@
 {% extends 'tom_common/base.html' %}
 {% load bootstrap4 static tom_education_extras %}
+
+{% block additional_css %}
+<link rel="stylesheet" href="{% static 'tom_education/css/gallery.css' %}">
+{% endblock %}
+
 {% block title %}Data Product Gallery{% endblock %}
+
 {% block content %}
 
 <h2>Add data products to group</h2>
@@ -32,7 +38,7 @@
                     <div class="row">
                 {% endif %}
 
-                <div class="col-sm">
+                <div class="col-sm thumbnail">
                     <label>
                         {% dataproduct_checkbox product %}
                         {{ product.data.name }}
