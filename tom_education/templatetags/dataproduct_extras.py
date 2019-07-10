@@ -1,22 +1,17 @@
 from django import template
 from tom_dataproducts.templatetags import dataproduct_extras
 
-from tom_education.models import TimelapseDataProduct, ASYNC_STATUS_CREATED
+from tom_education.models import TimelapseDataProduct, TimelapseProcess, ASYNC_STATUS_CREATED
 
 
 def exclude_non_created_timelapses(products):
     """
-    Return a generator of DataProducts that are either not timelapses, or are
-    in the 'created' state
+    Filter the given iterable of DataProducts to remove timelapses that are
+    associated with an unfinished async process
     """
     for prod in products:
-        try:
-            timelapse_prod = TimelapseDataProduct.objects.get(pk=prod.pk)
-        except TimelapseDataProduct.DoesNotExist:
-            yield prod
-            continue
-
-        if timelapse_prod.status == ASYNC_STATUS_CREATED:
+        qs = TimelapseProcess.objects.filter(timelapse_product=prod).exclude(status=ASYNC_STATUS_CREATED)
+        if not qs.exists():
             yield prod
 
 

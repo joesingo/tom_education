@@ -2,7 +2,7 @@ import sys
 
 from django.conf import settings
 
-from tom_education.models import TimelapseDataProduct, DateFieldNotFoundError, ASYNC_STATUS_FAILED
+from tom_education.models import AsyncError, TimelapseDataProduct, TimelapseProcess, ASYNC_STATUS_FAILED
 
 def task(func, **kwargs):
     """
@@ -28,21 +28,25 @@ def make_timelapse(tl_prod_pk):
               file=sys.stderr)
         return
 
+    process = TimelapseProcess.objects.create(
+        identifier=tl_prod.get_filename(), timelapse_product=tl_prod, target=tl_prod.target
+    )
+    run_process(process)
+
+
+def run_process(process):
+    print("running process")
     failure_message = None
     try:
-        tl_prod.write()
-    except DateFieldNotFoundError as ex:
+        process.run()
+    except AsyncError as ex:
         failure_message = str(ex)
-    except ValueError as ex:
-        print('warning: ValueError: {}'.format(ex))
-        failure_message = 'Invalid parameters. Are all images the same size?'
     except Exception as ex:
         print('warning: unknown error occurred: {}'.format(ex))
         failure_message = 'An unexpected error occurred'
 
     if failure_message is not None:
         print('task failed: {}'.format(failure_message))
-        tl_prod.failure_message = failure_message
-        tl_prod.status = ASYNC_STATUS_FAILED
-
-    tl_prod.save()
+        process.failure_message = failure_message
+        process.status = ASYNC_STATUS_FAILED
+        process.save()

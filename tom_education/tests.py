@@ -23,9 +23,8 @@ from tom_observations.tests.utils import FakeFacility, FakeFacilityForm
 
 from tom_education.forms import DataProductActionForm, GalleryForm
 from tom_education.models import (
-    ObservationTemplate, TimelapseDataProduct, DateFieldNotFoundError,
-    ASYNC_STATUS_CREATED, ASYNC_STATUS_PENDING, ASYNC_STATUS_FAILED,
-    TIMELAPSE_WEBM
+    AsyncProcess, ObservationTemplate, TimelapseDataProduct, TimelapseProcess, DateFieldNotFoundError,
+    ASYNC_STATUS_CREATED, ASYNC_STATUS_PENDING, ASYNC_STATUS_FAILED
 )
 from tom_education.tasks import make_timelapse
 
@@ -344,71 +343,6 @@ class TimelapseTestCase(TestCase):
         self.assertEqual(tldp.fmt, 'gif')
         self.assertEqual(tldp.fps, 16)
 
-        # Status should be set
-        self.assertTrue(tldp.status)
-
-    def test_timelapse_status_api(self):
-        tl_prod = TimelapseDataProduct.objects.create(
-            product_id='hello',
-            target=self.target,
-            status=ASYNC_STATUS_PENDING,
-            fmt=TIMELAPSE_WEBM
-        )
-        failed_tl_prod = TimelapseDataProduct.objects.create(
-            product_id='ohno',
-            target=self.target,
-            status=ASYNC_STATUS_FAILED,
-            failure_message='oops'
-        )
-        url = reverse('tom_education:timelapse_status_api', kwargs={'target': self.target.pk})
-
-        # Construct the dicts representing timelapses expected in the JSON
-        # response
-        hello_prod_dict = {
-            'product_id': 'hello',
-            'filename': 'hello.webm'
-        }
-        failed_prod_dict = {
-            'product_id': 'ohno',
-            'filename': 'ohno.gif',
-            'failure_message': 'oops'
-        }
-
-        response1 = self.client.get(url)
-        self.assertEqual(response1.status_code, 200)
-        self.assertEqual(response1.json(), {
-            'ok': True,
-            'timelapses': {'pending': [hello_prod_dict], 'created': [], 'failed': [failed_prod_dict]}
-        })
-
-        tl_prod.status = ASYNC_STATUS_CREATED
-        tl_prod.save()
-        response2 = self.client.get(url)
-        self.assertEqual(response2.status_code, 200)
-        self.assertEqual(response2.json(), {
-            'ok': True,
-            'timelapses': {'pending': [], 'created': [hello_prod_dict], 'failed': [failed_prod_dict]}
-        })
-
-        tl_prod.status = ASYNC_STATUS_FAILED
-        tl_prod.save()
-        response3 = self.client.get(url)
-        self.assertEqual(response3.status_code, 200)
-        self.assertEqual(response3.json(), {
-            'ok': True,
-            'timelapses': {
-                'pending': [], 'created': [],
-                # When multiple timelapses in the same state, they should be
-                # sorted by product ID ('hello' and 'ohno' in this case)
-                'failed': [dict(hello_prod_dict, failure_message=None), failed_prod_dict]
-            }
-        })
-
-        # Bad target PK should give 404
-        response4 = self.client.get(reverse('tom_education:timelapse_status_api', kwargs={'target': 100000}))
-        self.assertEqual(response4.status_code, 404)
-        self.assertEqual(response4.json(), {'ok': False, 'error': 'Target not found'})
-
     def test_empty_form(self):
         form = DataProductActionForm(target=self.target, data={})
         self.assertFalse(form.is_valid())
@@ -516,20 +450,26 @@ class TimelapseTestCase(TestCase):
         # Cause an 'expected' error by patching date field: should get proper
         # failure message
         with patch('tom_education.models.TimelapseDataProduct.FITS_DATE_FIELD', new='hello') as _mock:
-            make_timelapse(tldp.pk)
-            tldp.refresh_from_db()
-            self.assertEqual(tldp.status, ASYNC_STATUS_FAILED)
-            self.assertTrue(isinstance(tldp.failure_message, str))
-            self.assertTrue(tldp.failure_message.startswith('Could not find observation date'))
+            make_timelapse(tldp)
+            # process should have been created
+            process = TimelapseProcess.objects.filter(
+                identifier=tldp.get_filename(),
+                target=tldp.target,
+                timelapse_product=tldp
+            ).first()
+            self.assertTrue(process is not None)
+            self.assertEqual(process.status, ASYNC_STATUS_FAILED)
+            self.assertTrue(isinstance(process.failure_message, str))
+            self.assertTrue(process.failure_message.startswith('Could not find observation date'))
 
         # Cause an 'unexpected' error: should get generic failure message
         tldp2 = self.create_timelapse_dataproduct(self.prods)
         with patch('tom_education.models.imageio', new='hello') as _mock:
             make_timelapse(tldp2.pk)
-            tldp2.refresh_from_db()
-            self.assertEqual(tldp2.status, ASYNC_STATUS_FAILED)
-            self.assertTrue(isinstance(tldp2.failure_message, str))
-            self.assertEqual(tldp2.failure_message, 'An unexpected error occurred')
+            process2 = TimelapseProcess.objects.get(identifier=tldp2.get_filename())
+            self.assertEqual(process2.status, ASYNC_STATUS_FAILED)
+            self.assertTrue(isinstance(process2.failure_message, str))
+            self.assertEqual(process2.failure_message, 'An unexpected error occurred')
 
     @override_settings(TOM_EDUCATION_TIMELAPSE_SETTINGS={'format': 'gif', 'fps': 16},
                        TOM_EDUCATION_TIMELAPSE_GROUP_NAME='timelapsey')
@@ -563,7 +503,6 @@ class TimelapseTestCase(TestCase):
         # Check the timelapse itself
         tldp = TimelapseDataProduct.objects.all()[0]
         self.assertEqual(tldp.target, self.target)
-        self.assertEqual(tldp.status, ASYNC_STATUS_CREATED)
         self.assertEqual(set(tldp.frames.all()), set(self.prods[:2]))
         self.assert_gif_data(tldp.data.file)
 
@@ -587,21 +526,19 @@ class TimelapseTestCase(TestCase):
         in the target detail view
         """
         # Create one timelapse for each status
-        pending = TimelapseDataProduct.objects.create(
-            product_id='pend',
-            target=self.target,
-            status=ASYNC_STATUS_PENDING
+        pending = TimelapseDataProduct.objects.create(product_id='pend', target=self.target)
+        created = TimelapseDataProduct.objects.create(product_id='cre', target=self.target)
+        failed = TimelapseDataProduct.objects.create(product_id='fail', target=self.target)
+        TimelapseProcess.objects.create(
+            identifier='pend', status=ASYNC_STATUS_PENDING, timelapse_product=pending
         )
-        created = TimelapseDataProduct.objects.create(
-            product_id='cre',
-            target=self.target,
-            status=ASYNC_STATUS_CREATED
+        TimelapseProcess.objects.create(
+            identifier='cre', status=ASYNC_STATUS_CREATED, timelapse_product=created
         )
-        failed = TimelapseDataProduct.objects.create(
-            product_id='fail',
-            target=self.target,
-            status=ASYNC_STATUS_FAILED
+        TimelapseProcess.objects.create(
+            identifier='fail', status=ASYNC_STATUS_FAILED, timelapse_product=failed
         )
+
         url = reverse('tom_education:target_detail', kwargs={'pk': self.target.pk})
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
@@ -684,3 +621,65 @@ class GalleryTestCase(TestCase):
         messages = list(response2.context['messages'])
         self.assertEqual(len(messages), 1)
         self.assertEqual(str(messages[0]), 'Added 2 data products to group \'mygroup\'')
+
+
+class AsyncStatusApiTestCase(TestCase):
+    def test_api(self):
+        target = Target.objects.create(identifier='target123', name='my target')
+        proc = AsyncProcess.objects.create(
+            identifier='hello',
+            target=target,
+            status=ASYNC_STATUS_PENDING,
+        )
+        failed_proc = AsyncProcess.objects.create(
+            identifier='ohno',
+            target=target,
+            status=ASYNC_STATUS_FAILED,
+            failure_message='oops'
+        )
+        url = reverse('tom_education:async_process_status_api', kwargs={'target': target.pk})
+
+        # Construct the dicts representing processes expected in the JSON
+        # response
+        proc_dict = {
+            'identifier': 'hello'
+        }
+        failed_proc_dict = {
+            'identifier': 'ohno',
+            'failure_message': 'oops'
+        }
+
+        response1 = self.client.get(url)
+        self.assertEqual(response1.status_code, 200)
+        self.assertEqual(response1.json(), {
+            'ok': True,
+            'processes': {'pending': [proc_dict], 'created': [], 'failed': [failed_proc_dict]}
+        })
+
+        proc.status = ASYNC_STATUS_CREATED
+        proc.save()
+        response2 = self.client.get(url)
+        self.assertEqual(response2.status_code, 200)
+        self.assertEqual(response2.json(), {
+            'ok': True,
+            'processes': {'pending': [], 'created': [proc_dict], 'failed': [failed_proc_dict]}
+        })
+
+        proc.status = ASYNC_STATUS_FAILED
+        proc.save()
+        response3 = self.client.get(url)
+        self.assertEqual(response3.status_code, 200)
+        self.assertEqual(response3.json(), {
+            'ok': True,
+            'processes': {
+                'pending': [], 'created': [],
+                # When multiple processes in the same state, they should be
+                # sorted by product ID ('hello' and 'ohno' in this case)
+                'failed': [dict(proc_dict, failure_message=None), failed_proc_dict]
+            }
+        })
+
+        # Bad target PK should give 404
+        response4 = self.client.get(reverse('tom_education:async_process_status_api', kwargs={'target': 100000}))
+        self.assertEqual(response4.status_code, 404)
+        self.assertEqual(response4.json(), {'ok': False, 'error': 'Target not found'})

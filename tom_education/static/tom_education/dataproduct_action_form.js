@@ -4,76 +4,79 @@ const DISPLAY_STAUSES = {
     'created': 'Created',
     'failed': 'Failed'
 };
+const AJAX_ACTIONS = {
+    'create_timelapse': true
+};
 var $FORM = $('#dataproduct-action-form');
 
 /*
- * Start periodically polling the API to get info on timelapses for the given
+ * Start periodically polling the API to get info on processes for the given
  * target
  */
 function startStatusPolling(target_pk) {
-    var timelapse_stauses = null;
+    var process_statuses = null;
 
     window.setInterval(function() {
         // TODO: don't hardcode URL
-        var url = '/timelapse/status/' + target_pk;
+        var url = '/async/status/' + target_pk;
         $.get(url, function(data) {
             if (!data.ok) {
                 showError('An error occurred: ' + data.error);
                 return;
             }
 
-            if (JSON.stringify(timelapse_stauses) !== JSON.stringify(data)) {
-                timelapse_stauses = data;
-                showTimelapses(timelapse_stauses.timelapses);
+            if (JSON.stringify(process_statuses) !== JSON.stringify(data)) {
+                process_statuses = data;
+                showProcesses(process_statuses.processes);
             }
         }, 'json').fail(function() {
-            showError('Failed to retrieve timelapse statuses')
+            showError('Failed to retrieve process statuses')
         });
     }, POLL_INTERVAL);
 }
 
 /*
- * Display the status of timelapses. `obj` is the 'timelapses' attribute
- * in the JSON API response
+ * Display the status of processes. `obj` is the 'processes' attribute in the
+ * JSON API response
  */
-function showTimelapses(obj) {
+function showProcesses(obj) {
     // Find filenames of data products in the data table, so as to not show
-    // created timelapses in two places
+    // created timelapse procecess in two places
     var filenames = {};
     $('.product-filename').each(function(index) {
         filenames[this.innerText] = true;
     });
 
-    var $wrapper = $('#timelapse-table-wrapper');
+    var $wrapper = $('#async-table-wrapper');
     var $empty_message = $wrapper.find("p");
     var $table = $wrapper.find('table');
     var $tbody = $table.find('tbody');
     $tbody.html('');
 
-    var no_timelapses = true;
+    var no_processes = true;
     for (var st in obj) {
-        var timelapses = obj[st];
-        for (var i=0; i<timelapses.length; i++) {
-            var timelapse = timelapses[i];
-            if (timelapse.filename in filenames) {
+        var proccess = obj[st];
+        for (var i=0; i<proccess.length; i++) {
+            var process = proccess[i];
+            if (process.identifier in filenames) {
                 continue;
             }
-            no_timelapses = false;
+            no_processes = false;
             var $row = $('<tr>');
-            $row.append('<td>' + timelapse.filename + '</td>');
+            $row.append('<td>' + process.identifier + '</td>');
             var $status_cell = $('<td><b>' + DISPLAY_STAUSES[st] + '</b></td>');
             if (st == 'created') {
                 $status_cell.append(' (refresh to view in data table)');
             }
-            else if (st === 'failed' && timelapse.failure_message) {
-                $status_cell.append(' (' + timelapse.failure_message + ')');
+            else if (st === 'failed' && process.failure_message) {
+                $status_cell.append(' (' + process.failure_message + ')');
             }
             $row.append($status_cell);
             $tbody.append($row);
         }
     }
 
-    if (no_timelapses) {
+    if (no_processes) {
         $table.hide();
         $empty_message.show();
     }
@@ -92,13 +95,12 @@ function showError(msg) {
 }
 
 /*
- * Submit handler for action form so we can create timelapses asynchronously
+ * Submit handler for action form so we can perform some actions asynchronously
  */
 $FORM.submit(function(event) {
     var action = $FORM.find('input[type=submit][clicked=true]').attr('name');
     $FORM.find('input[name=action]').val(action);
-    // For any action other than timelapse, submit form as usual
-    if (action !== 'create_timelapse') {
+    if (!(action in AJAX_ACTIONS)) {
         return;
     }
 
@@ -106,15 +108,15 @@ $FORM.submit(function(event) {
     $.post($FORM.attr('action'), $FORM.serialize() , function(data) {
         if (data.ok) {
             deselectAllProducts();
-            // Scroll to timelapse section
-            window.location.href = '#timelapse-section';
+            // Scroll to async section
+            window.location.href = '#async-section';
         }
         else {
-            showError('Error submitting timelapse');
+            showError('Error submitting form');
         }
     },
     'json').fail(function() {
-        showError('Failed to submit timelapse');
+        showError('Failed to submit form');
     });
 });
 

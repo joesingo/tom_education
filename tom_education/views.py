@@ -16,8 +16,8 @@ from tom_targets.views import TargetDetailView
 
 from tom_education.forms import make_templated_form, DataProductActionForm, GalleryForm
 from tom_education.models import (
-    ObservationTemplate, TimelapseDataProduct, ASYNC_STATUS_PENDING, ASYNC_STATUS_CREATED,
-    ASYNC_STATUS_FAILED
+    AsyncProcess, ObservationTemplate, TimelapseDataProduct,
+    ASYNC_STATUS_PENDING, ASYNC_STATUS_CREATED, ASYNC_STATUS_FAILED
 )
 from tom_education.tasks import make_timelapse
 
@@ -236,21 +236,20 @@ class GalleryView(FormView):
         return HttpResponseRedirect(url)
 
 
-class TimelapseStatusApiView(ListView):
+class AsyncStatusApi(ListView):
     """
-    View that finds all TimelapseDataProduct objects associated with a
-    specified Target, groups them by status, and returns the listing in a JSON
-    response
+    View that finds all AsyncProcess objects associated with a specified
+    Target, groups them by status, and returns the listing in a JSON response
     """
     def get_queryset(self):
         target = Target.objects.get(pk=self.kwargs['target'])
-        return TimelapseDataProduct.objects.filter(target=target)
+        return AsyncProcess.objects.filter(target=target)
 
     def get(self, request, *args, **kwargs):
         statuses = (ASYNC_STATUS_PENDING, ASYNC_STATUS_CREATED, ASYNC_STATUS_FAILED)
         response_dict = {
             'ok': True,
-            'timelapses': {status: [] for status in statuses}
+            'processes': {status: [] for status in statuses}
         }
 
         try:
@@ -258,16 +257,16 @@ class TimelapseStatusApiView(ListView):
         except Target.DoesNotExist:
             return JsonResponse({'ok': False, 'error': 'Target not found'}, status=404)
 
-        for tl_prod in qs:
-            prod_dict = {
-                'product_id': tl_prod.product_id,
-                'filename': tl_prod.get_filename()
+        for process in qs:
+            proc_dict = {
+                'identifier': process.identifier
             }
-            if tl_prod.status == ASYNC_STATUS_FAILED:
-                prod_dict['failure_message'] = tl_prod.failure_message or None
+            if process.status == ASYNC_STATUS_FAILED:
+                proc_dict['failure_message'] = process.failure_message or None
 
-            response_dict['timelapses'][tl_prod.status].append(prod_dict)
-        # Sort each list by product ID so we have a consistent order
+            response_dict['processes'][process.status].append(proc_dict)
+
+        # Sort each list by identifier so we have a consistent order
         for status in statuses:
-            response_dict['timelapses'][status].sort(key=lambda d: d['product_id'])
+            response_dict['processes'][status].sort(key=lambda d: d['identifier'])
         return JsonResponse(response_dict)

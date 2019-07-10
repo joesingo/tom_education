@@ -24,7 +24,7 @@ TIMELAPSE_WEBM = 'webm'
 
 class ObservationTemplate(models.Model):
     name = models.CharField(max_length=255, null=False)
-    target = models.ForeignKey(Target, on_delete='cascade', null=False)
+    target = models.ForeignKey(Target, on_delete=models.CASCADE, null=False)
     facility = models.CharField(max_length=255, null=False)
     # Form fields serialized as a JSON string
     fields = models.TextField()
@@ -67,11 +67,6 @@ class TimelapseDataProduct(DataProduct):
     """
     A timelapse data product created from other data products
     """
-    STATUS_CHOICES = (
-        (ASYNC_STATUS_PENDING, 'Pending'),
-        (ASYNC_STATUS_CREATED, 'Created'),
-        (ASYNC_STATUS_FAILED, 'Failed')
-    )
     FORMAT_CHOICES = (
         (TIMELAPSE_GIF, 'GIF'),
         (TIMELAPSE_MP4, 'MP4'),
@@ -79,10 +74,6 @@ class TimelapseDataProduct(DataProduct):
     )
     FITS_DATE_FIELD = 'DATE-OBS'
 
-    status = models.CharField(
-        max_length=10, choices=STATUS_CHOICES, blank=True, default=ASYNC_STATUS_PENDING
-    )
-    failure_message = models.CharField(max_length=255, blank=True)
     frames = models.ManyToManyField(DataProduct, related_name='timelapse')
     fmt = models.CharField(max_length=10, choices=FORMAT_CHOICES, default=TIMELAPSE_GIF, blank=False)
     fps = models.FloatField(default=10, blank=False)
@@ -113,8 +104,6 @@ class TimelapseDataProduct(DataProduct):
         self._write(buf)
         self.data.delete(save=False)
         self.data.save(self.get_filename(), File(buf), save=False)
-        # Update status
-        self.status = ASYNC_STATUS_CREATED
 
     def _write(self, outfile):
         """
@@ -186,10 +175,58 @@ class TimelapseDataProduct(DataProduct):
             product_id=product_id,
             target=target,
             tag=IMAGE_FILE[0],
-            status=ASYNC_STATUS_PENDING,
             fmt=fmt,
             fps=fps,
         )
         tl.frames.add(*frames)
         tl.save()
         return tl
+
+
+class AsyncError(Exception):
+    """
+    An error occurred in an asynchronous process
+    """
+
+
+class AsyncProcess(models.Model):
+    STATUS_CHOICES = (
+        (ASYNC_STATUS_PENDING, 'Pending'),
+        (ASYNC_STATUS_CREATED, 'Created'),
+        (ASYNC_STATUS_FAILED, 'Failed')
+    )
+    identifier = models.CharField(null=False, blank=False, max_length=50, unique=True)
+    status = models.CharField(
+        max_length=50, choices=STATUS_CHOICES, default=ASYNC_STATUS_PENDING
+    )
+    failure_message = models.CharField(max_length=255, blank=True)
+    # Process may optionally be associated with a target
+    target = models.ForeignKey(Target, on_delete=models.CASCADE, null=True)
+
+    def run():
+        """
+        Perform the potentially long-running task. Should raise AsyncError with
+        an appropriate error message on failure.
+        """
+        raise NotImplementedError
+
+
+class TimelapseProcess(AsyncProcess):
+    """
+    Asynchronous process that calls the write() method on a
+    TimelapseDataProduct
+    """
+    timelapse_product = models.ForeignKey(TimelapseDataProduct, on_delete=models.CASCADE, null=False)
+
+    def run(self):
+        # Run write() and convert exceptions to AsyncError for calling code to
+        # handle
+        try:
+            self.timelapse_product.write()
+        except DateFieldNotFoundError as ex:
+            raise AsyncError(str(ex))
+        except ValueError as ex:
+            print('warning: ValueError: {}'.format(ex))
+            raise AsyncError('Invalid parameters. Are all images the same size?')
+        self.status = ASYNC_STATUS_CREATED
+        self.save()

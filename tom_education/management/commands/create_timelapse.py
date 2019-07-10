@@ -6,7 +6,6 @@ from tom_dataproducts.models import DataProductGroup
 from tom_targets.models import Target
 
 from tom_education.models import TimelapseDataProduct
-from tom_education.tasks import make_timelapse
 
 
 # Supress imageio warnings
@@ -50,5 +49,5 @@ class Command(BaseCommand):
             return
 
         tl = TimelapseDataProduct.create_timestamped(target, prods)
-        make_timelapse(tl.pk)
+        tl.write()
         self.stdout.write(self.style.SUCCESS('Created timelapse {}'.format(tl.data.path)))
