@@ -2,7 +2,7 @@ import sys
 
 from django.conf import settings
 
-from tom_education.models import TimelapseDataProduct, DateFieldNotFoundError, TIMELAPSE_FAILED
+from tom_education.models import TimelapseDataProduct, DateFieldNotFoundError, ASYNC_STATUS_FAILED
 
 def task(func, **kwargs):
     """
@@ -43,6 +43,6 @@ def make_timelapse(tl_prod_pk):
     if failure_message is not None:
         print('task failed: {}'.format(failure_message))
         tl_prod.failure_message = failure_message
-        tl_prod.status = TIMELAPSE_FAILED
+        tl_prod.status = ASYNC_STATUS_FAILED
 
     tl_prod.save()

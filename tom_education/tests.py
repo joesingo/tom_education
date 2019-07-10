@@ -24,7 +24,7 @@ from tom_observations.tests.utils import FakeFacility, FakeFacilityForm
 from tom_education.forms import DataProductActionForm, GalleryForm
 from tom_education.models import (
     ObservationTemplate, TimelapseDataProduct, DateFieldNotFoundError,
-    TIMELAPSE_CREATED, TIMELAPSE_PENDING, TIMELAPSE_FAILED,
+    ASYNC_STATUS_CREATED, ASYNC_STATUS_PENDING, ASYNC_STATUS_FAILED,
     TIMELAPSE_WEBM
 )
 from tom_education.tasks import make_timelapse
@@ -351,13 +351,13 @@ class TimelapseTestCase(TestCase):
         tl_prod = TimelapseDataProduct.objects.create(
             product_id='hello',
             target=self.target,
-            status=TIMELAPSE_PENDING,
+            status=ASYNC_STATUS_PENDING,
             fmt=TIMELAPSE_WEBM
         )
         failed_tl_prod = TimelapseDataProduct.objects.create(
             product_id='ohno',
             target=self.target,
-            status=TIMELAPSE_FAILED,
+            status=ASYNC_STATUS_FAILED,
             failure_message='oops'
         )
         url = reverse('tom_education:timelapse_status_api', kwargs={'target': self.target.pk})
@@ -381,7 +381,7 @@ class TimelapseTestCase(TestCase):
             'timelapses': {'pending': [hello_prod_dict], 'created': [], 'failed': [failed_prod_dict]}
         })
 
-        tl_prod.status = TIMELAPSE_CREATED
+        tl_prod.status = ASYNC_STATUS_CREATED
         tl_prod.save()
         response2 = self.client.get(url)
         self.assertEqual(response2.status_code, 200)
@@ -390,7 +390,7 @@ class TimelapseTestCase(TestCase):
             'timelapses': {'pending': [], 'created': [hello_prod_dict], 'failed': [failed_prod_dict]}
         })
 
-        tl_prod.status = TIMELAPSE_FAILED
+        tl_prod.status = ASYNC_STATUS_FAILED
         tl_prod.save()
         response3 = self.client.get(url)
         self.assertEqual(response3.status_code, 200)
@@ -518,7 +518,7 @@ class TimelapseTestCase(TestCase):
         with patch('tom_education.models.TimelapseDataProduct.FITS_DATE_FIELD', new='hello') as _mock:
             make_timelapse(tldp.pk)
             tldp.refresh_from_db()
-            self.assertEqual(tldp.status, TIMELAPSE_FAILED)
+            self.assertEqual(tldp.status, ASYNC_STATUS_FAILED)
             self.assertTrue(isinstance(tldp.failure_message, str))
             self.assertTrue(tldp.failure_message.startswith('Could not find observation date'))
 
@@ -527,7 +527,7 @@ class TimelapseTestCase(TestCase):
         with patch('tom_education.models.imageio', new='hello') as _mock:
             make_timelapse(tldp2.pk)
             tldp2.refresh_from_db()
-            self.assertEqual(tldp2.status, TIMELAPSE_FAILED)
+            self.assertEqual(tldp2.status, ASYNC_STATUS_FAILED)
             self.assertTrue(isinstance(tldp2.failure_message, str))
             self.assertEqual(tldp2.failure_message, 'An unexpected error occurred')
 
@@ -563,7 +563,7 @@ class TimelapseTestCase(TestCase):
         # Check the timelapse itself
         tldp = TimelapseDataProduct.objects.all()[0]
         self.assertEqual(tldp.target, self.target)
-        self.assertEqual(tldp.status, TIMELAPSE_CREATED)
+        self.assertEqual(tldp.status, ASYNC_STATUS_CREATED)
         self.assertEqual(set(tldp.frames.all()), set(self.prods[:2]))
         self.assert_gif_data(tldp.data.file)
 
@@ -590,17 +590,17 @@ class TimelapseTestCase(TestCase):
         pending = TimelapseDataProduct.objects.create(
             product_id='pend',
             target=self.target,
-            status=TIMELAPSE_PENDING
+            status=ASYNC_STATUS_PENDING
         )
         created = TimelapseDataProduct.objects.create(
             product_id='cre',
             target=self.target,
-            status=TIMELAPSE_CREATED
+            status=ASYNC_STATUS_CREATED
         )
         failed = TimelapseDataProduct.objects.create(
             product_id='fail',
             target=self.target,
-            status=TIMELAPSE_FAILED
+            status=ASYNC_STATUS_FAILED
         )
         url = reverse('tom_education:target_detail', kwargs={'pk': self.target.pk})
         response = self.client.get(url)

@@ -16,8 +16,8 @@ from tom_targets.views import TargetDetailView
 
 from tom_education.forms import make_templated_form, DataProductActionForm, GalleryForm
 from tom_education.models import (
-    ObservationTemplate, TimelapseDataProduct, TIMELAPSE_PENDING, TIMELAPSE_CREATED,
-    TIMELAPSE_FAILED
+    ObservationTemplate, TimelapseDataProduct, ASYNC_STATUS_PENDING, ASYNC_STATUS_CREATED,
+    ASYNC_STATUS_FAILED
 )
 from tom_education.tasks import make_timelapse
 
@@ -247,7 +247,7 @@ class TimelapseStatusApiView(ListView):
         return TimelapseDataProduct.objects.filter(target=target)
 
     def get(self, request, *args, **kwargs):
-        statuses = (TIMELAPSE_PENDING, TIMELAPSE_CREATED, TIMELAPSE_FAILED)
+        statuses = (ASYNC_STATUS_PENDING, ASYNC_STATUS_CREATED, ASYNC_STATUS_FAILED)
         response_dict = {
             'ok': True,
             'timelapses': {status: [] for status in statuses}
@@ -263,7 +263,7 @@ class TimelapseStatusApiView(ListView):
                 'product_id': tl_prod.product_id,
                 'filename': tl_prod.get_filename()
             }
-            if tl_prod.status == TIMELAPSE_FAILED:
+            if tl_prod.status == ASYNC_STATUS_FAILED:
                 prod_dict['failure_message'] = tl_prod.failure_message or None
 
             response_dict['timelapses'][tl_prod.status].append(prod_dict)

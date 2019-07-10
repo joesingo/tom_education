@@ -1,7 +1,7 @@
 from django import template
 from tom_dataproducts.templatetags import dataproduct_extras
 
-from tom_education.models import TimelapseDataProduct, TIMELAPSE_CREATED
+from tom_education.models import TimelapseDataProduct, ASYNC_STATUS_CREATED
 
 
 def exclude_non_created_timelapses(products):
@@ -16,7 +16,7 @@ def exclude_non_created_timelapses(products):
             yield prod
             continue
 
-        if timelapse_prod.status == TIMELAPSE_CREATED:
+        if timelapse_prod.status == ASYNC_STATUS_CREATED:
             yield prod
 
 

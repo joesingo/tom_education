@@ -13,6 +13,15 @@ from tom_dataproducts.models import DataProduct, IMAGE_FILE
 from tom_targets.models import Target
 
 
+ASYNC_STATUS_PENDING = 'pending'
+ASYNC_STATUS_CREATED = 'created'
+ASYNC_STATUS_FAILED = 'failed'
+
+TIMELAPSE_GIF = 'gif'
+TIMELAPSE_MP4 = 'mp4'
+TIMELAPSE_WEBM = 'webm'
+
+
 class ObservationTemplate(models.Model):
     name = models.CharField(max_length=255, null=False)
     target = models.ForeignKey(Target, on_delete='cascade', null=False)
@@ -48,15 +57,6 @@ class ObservationTemplate(models.Model):
         return "{}-{}".format(self.name, now.strftime(fmt))
 
 
-TIMELAPSE_PENDING = 'pending'
-TIMELAPSE_CREATED = 'created'
-TIMELAPSE_FAILED = 'failed'
-
-TIMELAPSE_GIF = 'gif'
-TIMELAPSE_MP4 = 'mp4'
-TIMELAPSE_WEBM = 'webm'
-
-
 class DateFieldNotFoundError(Exception):
     """
     The FITS header to obtain observation date was not found
@@ -68,9 +68,9 @@ class TimelapseDataProduct(DataProduct):
     A timelapse data product created from other data products
     """
     STATUS_CHOICES = (
-        (TIMELAPSE_PENDING, 'Pending'),
-        (TIMELAPSE_CREATED, 'Created'),
-        (TIMELAPSE_FAILED, 'Failed')
+        (ASYNC_STATUS_PENDING, 'Pending'),
+        (ASYNC_STATUS_CREATED, 'Created'),
+        (ASYNC_STATUS_FAILED, 'Failed')
     )
     FORMAT_CHOICES = (
         (TIMELAPSE_GIF, 'GIF'),
@@ -80,7 +80,7 @@ class TimelapseDataProduct(DataProduct):
     FITS_DATE_FIELD = 'DATE-OBS'
 
     status = models.CharField(
-        max_length=10, choices=STATUS_CHOICES, blank=True, default=TIMELAPSE_PENDING
+        max_length=10, choices=STATUS_CHOICES, blank=True, default=ASYNC_STATUS_PENDING
     )
     failure_message = models.CharField(max_length=255, blank=True)
     frames = models.ManyToManyField(DataProduct, related_name='timelapse')
@@ -114,7 +114,7 @@ class TimelapseDataProduct(DataProduct):
         self.data.delete(save=False)
         self.data.save(self.get_filename(), File(buf), save=False)
         # Update status
-        self.status = TIMELAPSE_CREATED
+        self.status = ASYNC_STATUS_CREATED
 
     def _write(self, outfile):
         """
@@ -186,7 +186,7 @@ class TimelapseDataProduct(DataProduct):
             product_id=product_id,
             target=target,
             tag=IMAGE_FILE[0],
-            status=TIMELAPSE_PENDING,
+            status=ASYNC_STATUS_PENDING,
             fmt=fmt,
             fps=fps,
         )
