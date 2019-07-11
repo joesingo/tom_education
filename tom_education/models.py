@@ -1,15 +1,22 @@
+from contextlib import contextmanager
 from datetime import datetime
-from io import BytesIO
+from io import BytesIO, StringIO
+import logging
+import tempfile
+from pathlib import Path
 from urllib.parse import urlparse, parse_qs, urlunparse
 
 from astropy.io import fits
+import autovar
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.files import File
+from django.core.files.base import ContentFile
 from django.db import models
 from django.utils.http import urlencode
 import imageio
-from tom_dataproducts.models import DataProduct, IMAGE_FILE
+import numpy as np
+from tom_dataproducts.models import DataProduct, DataProductGroup, IMAGE_FILE
 from tom_targets.models import Target
 
 
@@ -230,3 +237,88 @@ class TimelapseProcess(AsyncProcess):
             raise AsyncError('Invalid parameters. Are all images the same size?')
         self.status = ASYNC_STATUS_CREATED
         self.save()
+
+
+class AutovarProcess(AsyncProcess):
+    # Directories to find output files in after autovar has been run
+    output_dirs = ('outputcats', 'outputplots')
+
+    input_files = models.ManyToManyField(DataProduct, related_name='autovar')
+    logs = models.TextField()
+
+    def run(self):
+        if self.target is None:
+            raise AsyncError('Process must have an associated target')
+        if not self.input_files.exists():
+            raise AsyncError('No input files to analyse')
+
+        output = StringIO()
+        logger = logging.getLogger('autovar')
+        logger.setLevel(logging.INFO)
+        logger.addHandler(logging.StreamHandler(output))
+
+        with self.autovar_dir() as autovar_dir:
+            try:
+                self.do_autovar(autovar_dir)
+            except autovar.AutovarException as ex:
+                raise AsyncError(str(ex))
+
+            # Get outputs
+            group = DataProductGroup.objects.create(name=f'{self.identifier}_outputs')
+            for path in self.gather_outputs(autovar_dir):
+                product_id = f'{self.identifier}_{path.name}'
+                prod = DataProduct.objects.create(product_id=product_id, target=self.target)
+                prod.group.add(group)
+                prod.data.save(product_id, ContentFile(path.read_bytes()))
+
+        # Save logs
+        output.seek(0)
+        self.logs = output.getvalue()
+
+        self.status = ASYNC_STATUS_CREATED
+        self.save()
+
+    @contextmanager
+    def autovar_dir(self):
+        """
+        Context manager to create a temporary directory, copy over the input
+        files to the new directory, and yield a Path object
+        """
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir)
+            for i, prod in enumerate(self.input_files.all()):
+                dest = path / Path(prod.data.path).name
+                dest.write_bytes(prod.data.read())
+            try:
+                yield path
+            finally:
+                pass
+
+    def do_autovar(self, autovar_dir):
+        """
+        Call autovar to perform the actual analysis
+        """
+        targets = np.array([self.target.ra, self.target.dec, 0, 0])
+        paths = autovar.folder_setup(autovar_dir)
+        filetype = 'fz'
+        filelist, filtercode = autovar.gather_files(paths, filetype=filetype)
+
+        autovar.find_stars(targets, paths, filelist)
+        autovar.find_comparisons(autovar_dir)
+        autovar.calculate_curves(targets, parentPath=autovar_dir)
+        autovar.photometric_calculations(targets, paths=paths)
+        autovar.make_plots(filterCode=filtercode, paths=paths)
+
+    def gather_outputs(self, autovar_dir):
+        """
+        Yield Path objects for files in the output directories in the given
+        autovar directory
+        """
+        for outdir_name in self.output_dirs:
+            outdir = autovar_dir / Path(outdir_name)
+            if not outdir.is_dir():
+                continue
+            for path in outdir.iterdir():
+                if not path.is_file():
+                    continue
+                yield path

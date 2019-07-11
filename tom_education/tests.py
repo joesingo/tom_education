@@ -1,7 +1,8 @@
 from datetime import datetime
 from io import BytesIO, StringIO
 import json
-import os.path
+import os
+from pathlib import Path
 from unittest.mock import patch
 
 from astropy.io import fits
@@ -23,7 +24,8 @@ from tom_observations.tests.utils import FakeFacility, FakeFacilityForm
 
 from tom_education.forms import DataProductActionForm, GalleryForm
 from tom_education.models import (
-    AsyncProcess, ObservationTemplate, TimelapseDataProduct, TimelapseProcess, DateFieldNotFoundError,
+    AutovarProcess, AsyncError, AsyncProcess, ObservationTemplate,
+    TimelapseDataProduct, TimelapseProcess, DateFieldNotFoundError,
     ASYNC_STATUS_CREATED, ASYNC_STATUS_PENDING, ASYNC_STATUS_FAILED
 )
 from tom_education.tasks import make_timelapse
@@ -683,3 +685,127 @@ class AsyncStatusApiTestCase(TestCase):
         response4 = self.client.get(reverse('tom_education:async_process_status_api', kwargs={'target': 100000}))
         self.assertEqual(response4.status_code, 404)
         self.assertEqual(response4.json(), {'ok': False, 'error': 'Target not found'})
+
+
+def mock_do_autovar(_self, avdir):
+    print("doing the thing")
+    one = avdir / 'one'
+    one.mkdir()
+    (one / 'file1.csv').write_text('hello')
+    (one / 'file2.png').write_text('goodbye')
+
+
+@patch('tom_education.models.AutovarProcess.do_autovar', mock_do_autovar)
+class AutovarTestCase(TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        target_identifier = 'mytarget_{}'.format(datetime.now().timestamp())
+        cls.target = Target.objects.create(identifier=target_identifier, name='my target')
+        cls.prods = [DataProduct.objects.create(product_id=f'test_{i}', target=cls.target)
+                     for i in range(4)]
+        for prod in cls.prods:
+            fn = f'{prod.product_id}_file'
+            prod.data.save(fn, File(BytesIO()))
+
+    def test_no_target(self):
+        proc = AutovarProcess.objects.create(identifier='notarget', target=None)
+        proc.input_files.add(*self.prods)
+        with self.assertRaises(AsyncError):
+            proc.run()
+
+    def test_no_input_files(self):
+        proc = AutovarProcess.objects.create(identifier='notarget', target=self.target)
+        with self.assertRaises(AsyncError):
+            proc.run()
+
+    def test_tmpdir_creation(self):
+        proc = AutovarProcess.objects.create(identifier='someprocess', target=self.target)
+        proc.input_files.add(*self.prods)
+        proc.save()
+
+        with proc.autovar_dir() as avdir:
+            self.assertTrue(isinstance(avdir, Path))
+            listing = {p.name for p in avdir.iterdir()}
+            self.assertEqual(listing, {
+                'test_0_file', 'test_1_file', 'test_2_file', 'test_3_file'
+            })
+
+    def test_tmpdir_cleanup(self):
+        """
+        Check that the temporary dir is deleted after processing, even in the
+        case of an error
+        """
+        proc = AutovarProcess.objects.create(identifier='someprocess', target=self.target)
+        proc.input_files.add(*self.prods)
+        proc.save()
+
+        path1 = None
+        path2 = None
+        with proc.autovar_dir() as avdir:
+            path1 = Path(avdir.absolute())
+        try:
+            with proc.autovar_dir() as avdir:
+                path2 = Path(avdir.absolute())
+                raise AsyncError('blah')
+        except AsyncError:
+            pass
+
+        self.assertFalse(path1.exists())
+        self.assertFalse(path2.exists())
+
+    @patch('tom_education.models.AutovarProcess.output_dirs', ['one', 'two', 'nonexistant'])
+    def test_gather_outputs(self):
+        proc = AutovarProcess.objects.create(identifier='someprocess', target=self.target)
+        proc.input_files.add(*self.prods)
+        proc.save()
+
+        with proc.autovar_dir() as avdir:
+            one = avdir / 'one'
+            one_subdir = one / 'subdir'
+            two = avdir / 'two'
+            three = avdir / 'three'
+            one.mkdir()
+            one_subdir.mkdir()
+            two.mkdir()
+            three.mkdir()
+
+            file1 = one / 'file1.png'
+            file2 = one / 'file2.bmp'
+            file3 = two / 'file3.tar.gz'
+            file4 = three / 'file4.txt'
+
+            file1.write_text('hello')
+            file2.write_text('hello')
+            file3.write_text('hello')
+            file4.write_text('hello')
+
+            outputs = set(proc.gather_outputs(avdir))
+            self.assertEqual(outputs, {file1, file2, file3})
+
+    @patch('tom_education.models.AutovarProcess.output_dirs', ['one'])
+    def test_create_group(self):
+        proc = AutovarProcess.objects.create(identifier='someprocess', target=self.target)
+        proc.input_files.add(*self.prods)
+        proc.save()
+
+        pre_dp_count = DataProduct.objects.count()
+        pre_group_count = DataProductGroup.objects.count()
+        self.assertEqual(pre_group_count, 0)
+
+        proc.run()
+
+        post_dp_count = DataProduct.objects.count()
+        post_group_count = DataProductGroup.objects.count()
+        self.assertEqual(post_dp_count, pre_dp_count + 2)
+        self.assertEqual(post_group_count, pre_group_count + 1)
+
+        group = DataProductGroup.objects.first()
+        self.assertEqual(group.name, 'someprocess_outputs')
+        self.assertEqual(group.dataproduct_set.count(), 2)
+
+        file1_dp = DataProduct.objects.get(product_id='someprocess_file1.csv')
+        file2_dp = DataProduct.objects.get(product_id='someprocess_file2.png')
+
+        self.assertEqual(file1_dp.data.read(), b'hello')
+        self.assertEqual(file2_dp.data.read(), b'goodbye')

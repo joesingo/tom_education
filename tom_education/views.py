@@ -16,10 +16,10 @@ from tom_targets.views import TargetDetailView
 
 from tom_education.forms import make_templated_form, DataProductActionForm, GalleryForm
 from tom_education.models import (
-    AsyncProcess, ObservationTemplate, TimelapseDataProduct,
+    AsyncProcess, AutovarProcess, ObservationTemplate, TimelapseDataProduct,
     ASYNC_STATUS_PENDING, ASYNC_STATUS_CREATED, ASYNC_STATUS_FAILED
 )
-from tom_education.tasks import make_timelapse
+from tom_education.tasks import analyse_products, make_timelapse
 
 
 class TemplatedObservationCreateView(ObservationCreateView):
@@ -160,6 +160,21 @@ class ActionableTargetDetailView(FormMixin, TargetDetailView):
         target = self.get_object()
         tl_prod = TimelapseDataProduct.create_timestamped(target, products)
         make_timelapse.send(tl_prod.pk)
+        return JsonResponse({'ok': True})
+
+    def handle_analyse(self, products, form):
+        target = self.get_object()
+
+        now = datetime.now()
+        date_str = now.strftime('%Y-%m-%d-%H%M%S')
+        identifier = 'analysis_{}_{}'.format(target.identifier, date_str)
+        process = AutovarProcess.objects.create(
+            identifier=identifier,
+            target=target
+        )
+        process.input_files.add(*products)
+        process.save()
+        analyse_products.send(process.pk)
         return JsonResponse({'ok': True})
 
     def handle_view_gallery(self, products, form):

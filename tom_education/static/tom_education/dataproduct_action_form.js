@@ -5,7 +5,8 @@ const DISPLAY_STAUSES = {
     'failed': 'Failed'
 };
 const AJAX_ACTIONS = {
-    'create_timelapse': true
+    'create_timelapse': true,
+    'analyse': true
 };
 var $FORM = $('#dataproduct-action-form');
 

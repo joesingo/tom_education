@@ -2,7 +2,10 @@ import sys
 
 from django.conf import settings
 
-from tom_education.models import AsyncError, TimelapseDataProduct, TimelapseProcess, ASYNC_STATUS_FAILED
+from tom_education.models import (
+    AsyncError, AutovarProcess, TimelapseDataProduct, TimelapseProcess,
+    ASYNC_STATUS_FAILED
+)
 
 def task(func, **kwargs):
     """
@@ -33,6 +36,16 @@ def make_timelapse(tl_prod_pk):
     )
     run_process(process)
 
+@task
+def analyse_products(process_pk):
+    try:
+        process = AutovarProcess.objects.get(pk=process_pk)
+    except AutovarProcess.DoesNotExist:
+        print('warning: could not find AutovarProcess with PK {}'.format(process_pk),
+              file=sys.stderr)
+        return
+    run_process(process)
+
 
 def run_process(process):
     print("running process")
@@ -50,3 +63,4 @@ def run_process(process):
         process.failure_message = failure_message
         process.status = ASYNC_STATUS_FAILED
         process.save()
+    print('process finished')
