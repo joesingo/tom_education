@@ -1,9 +1,4 @@
 const POLL_INTERVAL = 1000;  // in milliseconds
-const DISPLAY_STAUSES = {
-    'pending': 'Pending',
-    'created': 'Created',
-    'failed': 'Failed'
-};
 const AJAX_ACTIONS = {
     'create_timelapse': true,
     'analyse': true
@@ -13,6 +8,10 @@ var $FORM = $('#dataproduct-action-form');
 // Timestamp from the first API response: use this to determine whether a
 // process completed before our first request, in which case we do not show it
 var first_api_response_time = null;
+
+function getDisplayStatus(st) {
+    return st[0].toUpperCase() + st.substr(1);
+}
 
 /*
  * Start periodically polling the API to get info on processes for the given
@@ -65,7 +64,7 @@ function showProcesses(obj) {
         var $row = $('<tr>');
         $row.append('<td>' + process.identifier + '</td>');
         $row.append('<td>' + created.toLocaleString() + '</td>');
-        var $status_cell = $('<td><b>' + DISPLAY_STAUSES[process.status] + '</b></td>');
+        var $status_cell = $('<td><b>' + getDisplayStatus(process.status) + '</b></td>');
         if (process.status == 'created') {
             $status_cell.append(' (refresh to view in data table)');
         }

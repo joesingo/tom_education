@@ -199,16 +199,9 @@ class AsyncError(Exception):
 
 
 class AsyncProcess(models.Model):
-    STATUS_CHOICES = (
-        (ASYNC_STATUS_PENDING, 'Pending'),
-        (ASYNC_STATUS_CREATED, 'Created'),
-        (ASYNC_STATUS_FAILED, 'Failed')
-    )
     identifier = models.CharField(null=False, blank=False, max_length=50, unique=True)
     created = models.DateTimeField(auto_now_add=True)
-    status = models.CharField(
-        max_length=50, choices=STATUS_CHOICES, default=ASYNC_STATUS_PENDING
-    )
+    status = models.CharField(max_length=50, default=ASYNC_STATUS_PENDING)
     # Time at which the processes entered a terminal state
     terminal_timestamp = models.DateTimeField(null=True, blank=True)
     failure_message = models.CharField(max_length=255, blank=True)
@@ -316,11 +309,16 @@ class AutovarProcess(AsyncProcess):
         filetype = 'fz'
         filelist, filtercode = autovar.gather_files(paths, filetype=filetype)
 
-        autovar.find_stars(targets, paths, filelist)
-        autovar.find_comparisons(autovar_dir)
-        autovar.calculate_curves(targets, parentPath=autovar_dir)
-        autovar.photometric_calculations(targets, paths=paths)
-        autovar.make_plots(filterCode=filtercode, paths=paths)
+        with self.update_status('Finding stars'):
+            autovar.find_stars(targets, paths, filelist)
+        with self.update_status('Finding comparisons'):
+            autovar.find_comparisons(autovar_dir)
+        with self.update_status('Calculating curves'):
+            autovar.calculate_curves(targets, parentPath=autovar_dir)
+        with self.update_status('Performing photometric calculations'):
+            autovar.photometric_calculations(targets, paths=paths)
+        with self.update_status('Making plots'):
+            autovar.make_plots(filterCode=filtercode, paths=paths)
 
     def gather_outputs(self, autovar_dir):
         """
@@ -335,3 +333,9 @@ class AutovarProcess(AsyncProcess):
                 if not path.is_file():
                     continue
                 yield path
+
+    @contextmanager
+    def update_status(self, status):
+        yield None
+        self.status = status
+        self.save()
