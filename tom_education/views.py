@@ -253,8 +253,8 @@ class GalleryView(FormView):
 
 class AsyncStatusApi(ListView):
     """
-    View that finds all AsyncProcess objects associated with a specified
-    Target, groups them by status, and returns the listing in a JSON response
+    View that finds all AsyncProcess objects associated with a specified Target
+    and returns the listing in a JSON response
     """
     def get_queryset(self):
         target = Target.objects.get(pk=self.kwargs['target'])
@@ -265,7 +265,7 @@ class AsyncStatusApi(ListView):
         response_dict = {
             'ok': True,
             'timestamp': datetime.now().timestamp(),
-            'processes': {status: [] for status in statuses}
+            'processes': []
         }
 
         try:
@@ -276,16 +276,16 @@ class AsyncStatusApi(ListView):
         for process in qs:
             proc_dict = {
                 'identifier': process.identifier,
-                'created': process.created.timestamp()
+                'created': process.created.timestamp(),
+                'status': process.status
             }
             if process.status == ASYNC_STATUS_FAILED:
                 proc_dict['failure_message'] = process.failure_message or None
             if process.terminal_timestamp:
                 proc_dict['terminal_timestamp'] = process.terminal_timestamp.timestamp()
 
-            response_dict['processes'][process.status].append(proc_dict)
+            response_dict['processes'].append(proc_dict)
 
-        # Sort each list by identifier so we have a consistent order
-        for status in statuses:
-            response_dict['processes'][status].sort(key=lambda d: d['identifier'])
+        # Sort processes by creation time (most recent first)
+        response_dict['processes'].sort(key=lambda d: d['created'], reverse=True)
         return JsonResponse(response_dict)

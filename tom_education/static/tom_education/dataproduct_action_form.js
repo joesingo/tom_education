@@ -55,28 +55,25 @@ function showProcesses(obj) {
     $tbody.html('');
 
     var no_processes = true;
-    for (var st in obj) {
-        var proccess = obj[st];
-        for (var i=0; i<proccess.length; i++) {
-            var process = proccess[i];
-            if (process.terminal_timestamp && process.terminal_timestamp < first_api_response_time) {
-                continue;
-            }
-            no_processes = false;
-            var created = new Date(process.created * 1000);
-            var $row = $('<tr>');
-            $row.append('<td>' + process.identifier + '</td>');
-            $row.append('<td>' + created.toLocaleString() + '</td>');
-            var $status_cell = $('<td><b>' + DISPLAY_STAUSES[st] + '</b></td>');
-            if (st == 'created') {
-                $status_cell.append(' (refresh to view in data table)');
-            }
-            else if (st === 'failed' && process.failure_message) {
-                $status_cell.append(' (' + process.failure_message + ')');
-            }
-            $row.append($status_cell);
-            $tbody.append($row);
+    for (var i=0; i<obj.length; i++) {
+        var process = obj[i];
+        if (process.terminal_timestamp && process.terminal_timestamp < first_api_response_time) {
+            continue;
         }
+        no_processes = false;
+        var created = new Date(process.created * 1000);
+        var $row = $('<tr>');
+        $row.append('<td>' + process.identifier + '</td>');
+        $row.append('<td>' + created.toLocaleString() + '</td>');
+        var $status_cell = $('<td><b>' + DISPLAY_STAUSES[process.status] + '</b></td>');
+        if (process.status == 'created') {
+            $status_cell.append(' (refresh to view in data table)');
+        }
+        else if (process.status === 'failed' && process.failure_message) {
+            $status_cell.append(' (' + process.failure_message + ')');
+        }
+        $row.append($status_cell);
+        $tbody.append($row);
     }
 
     $loading.hide();

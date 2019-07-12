@@ -647,23 +647,26 @@ class AsyncStatusApiTestCase(TestCase):
     @patch('tom_education.models.datetime')
     @patch('tom_education.views.datetime')
     def test_api(self, views_dt_mock, models_dt_mock, django_mock):
-        d1 = datetime(year=2019, month=1, day=2, hour=3, minute=4, second=5, microsecond=6)
-        d2 = datetime(year=2050, month=1, day=1, hour=1, minute=1, second=1, microsecond=1)
-        d3 = datetime(year=1970, month=1, day=1, hour=1, minute=1, second=1, microsecond=1)
-        timestamp1 = d1.timestamp()
-        timestamp2 = d2.timestamp()
-        timestamp3 = d3.timestamp()
+        terminal_time = datetime(year=2019, month=1, day=2, hour=3, minute=4, second=5, microsecond=6)
+        current_time = datetime(year=2050, month=1, day=1, hour=1, minute=1, second=1, microsecond=1)
+        create_time1 = datetime(year=1970, month=1, day=1, hour=1, minute=1, second=1, microsecond=1)
+        create_time2 = datetime(year=1971, month=1, day=1, hour=1, minute=1, second=1, microsecond=1)
+        terminal_timestamp = terminal_time.timestamp()
+        current_timestamp = current_time.timestamp()
+        create_timestamp1 = create_time1.timestamp()
+        create_timestamp2 = create_time2.timestamp()
 
-        models_dt_mock.now.return_value = d1
-        views_dt_mock.now.return_value = d2
-        django_mock.return_value = d3
+        models_dt_mock.now.return_value = terminal_time
+        views_dt_mock.now.return_value = current_time
 
+        django_mock.return_value = create_time1
         target = Target.objects.create(identifier='target123', name='my target')
         proc = AsyncProcess.objects.create(
             identifier='hello',
             target=target,
             status=ASYNC_STATUS_PENDING,
         )
+        django_mock.return_value = create_time2
         failed_proc = AsyncProcess.objects.create(
             identifier='ohno',
             target=target,
@@ -673,24 +676,25 @@ class AsyncStatusApiTestCase(TestCase):
         url = reverse('tom_education:async_process_status_api', kwargs={'target': target.pk})
 
         # Construct the dicts representing processes expected in the JSON
-        # response
+        # response (excluding fields that will change)
         proc_dict = {
             'identifier': 'hello',
-            'created': timestamp3
+            'created': create_timestamp1,
         }
         failed_proc_dict = {
             'identifier': 'ohno',
-            'created': timestamp3,
+            'created': create_timestamp2,
+            'status': 'failed',
             'failure_message': 'oops',
-            'terminal_timestamp': timestamp1
+            'terminal_timestamp': terminal_timestamp
         }
 
         response1 = self.client.get(url)
         self.assertEqual(response1.status_code, 200)
         self.assertEqual(response1.json(), {
             'ok': True,
-            'timestamp': timestamp2,
-            'processes': {'pending': [proc_dict], 'created': [], 'failed': [failed_proc_dict]}
+            'timestamp': current_timestamp,
+            'processes': [failed_proc_dict, dict(proc_dict, status='pending')]
         })
 
         proc.status = ASYNC_STATUS_CREATED
@@ -699,12 +703,11 @@ class AsyncStatusApiTestCase(TestCase):
         self.assertEqual(response2.status_code, 200)
         self.assertEqual(response2.json(), {
             'ok': True,
-            'timestamp': timestamp2,
-            'processes': {
-                'pending': [],
-                'created': [dict(proc_dict, terminal_timestamp=timestamp1)],
-                'failed': [failed_proc_dict]
-            }
+            'timestamp': current_timestamp,
+            'processes': [
+                failed_proc_dict,
+                dict(proc_dict, status='created', terminal_timestamp=terminal_timestamp)
+            ],
         })
 
         proc.status = ASYNC_STATUS_FAILED
@@ -713,16 +716,12 @@ class AsyncStatusApiTestCase(TestCase):
         self.assertEqual(response3.status_code, 200)
         self.assertEqual(response3.json(), {
             'ok': True,
-            'timestamp': timestamp2,
-            'processes': {
-                'pending': [], 'created': [],
-                # When multiple processes in the same state, they should be
-                # sorted by product ID ('hello' and 'ohno' in this case)
-                'failed': [
-                    dict(proc_dict, failure_message=None, terminal_timestamp=timestamp1),
-                    failed_proc_dict
-                ]
-            }
+            'timestamp': current_timestamp,
+            'processes': [
+                failed_proc_dict,
+                dict(proc_dict, status='failed', terminal_timestamp=terminal_timestamp,
+                     failure_message=None)
+            ]
         })
 
         # Bad target PK should give 404
