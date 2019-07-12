@@ -204,7 +204,7 @@ class ObservationTemplateTestCase(TestCase):
         temp_count = ObservationTemplate.objects.all().count()
         self.assertEqual(temp_count, 1)
 
-    @patch('tom_education.models.datetime')
+    @patch('tom_education.models.observation_template.datetime')
     def test_instantiate_template(self, dt_mock, _):
         dt_mock.now.return_value = datetime(
             year=2019, month=1, day=2, hour=3, minute=4, second=5, microsecond=6
@@ -296,7 +296,7 @@ class TimelapseTestCase(TestCase):
         self.assertEqual(data.read(4), b'\x1a\x45\xdf\xa3')
 
     @override_settings(TOM_EDUCATION_TIMELAPSE_SETTINGS={'format': 'gif', 'fps': 16})
-    @patch('tom_education.models.datetime')
+    @patch('tom_education.models.timelapse.datetime')
     def test_create_timelapse_form(self, dt_mock):
         """
         Test the view and form, and check that the timelapse is created
@@ -468,7 +468,7 @@ class TimelapseTestCase(TestCase):
 
         # Cause an 'unexpected' error: should get generic failure message
         tldp2 = self.create_timelapse_dataproduct(self.prods)
-        with patch('tom_education.models.imageio', new='hello') as _mock:
+        with patch('tom_education.models.timelapse.imageio', new='hello') as _mock:
             make_timelapse(tldp2.pk)
             process2 = TimelapseProcess.objects.get(identifier=tldp2.get_filename())
             self.assertEqual(process2.status, ASYNC_STATUS_FAILED)
@@ -628,7 +628,7 @@ class GalleryTestCase(TestCase):
 
 
 class AsyncProcessTestCase(TestCase):
-    @patch('tom_education.models.datetime')
+    @patch('tom_education.models.async_process.datetime')
     def test_terminal_timestamp(self, dt_mock):
         somedate = datetime(
             year=2019, month=1, day=2, hour=3, minute=4, second=5, microsecond=6
@@ -646,7 +646,7 @@ class AsyncProcessTestCase(TestCase):
 
 class AsyncStatusApiTestCase(TestCase):
     @patch('django.utils.timezone.now')
-    @patch('tom_education.models.datetime')
+    @patch('tom_education.models.async_process.datetime')
     @patch('tom_education.views.datetime')
     def test_api(self, views_dt_mock, models_dt_mock, django_mock):
         terminal_time = datetime(year=2019, month=1, day=2, hour=3, minute=4, second=5, microsecond=6)

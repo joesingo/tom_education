@@ -1,0 +1,43 @@
+from datetime import datetime
+
+from django.db import models
+from tom_targets.models import Target
+
+
+# Statuses for asynchronous processes
+ASYNC_STATUS_PENDING = 'pending'
+ASYNC_STATUS_CREATED = 'created'
+ASYNC_STATUS_FAILED = 'failed'
+ASYNC_TERMINAL_STATES = (ASYNC_STATUS_CREATED, ASYNC_STATUS_FAILED)
+
+
+class AsyncError(Exception):
+    """
+    An error occurred in an asynchronous process
+    """
+
+
+class AsyncProcess(models.Model):
+    identifier = models.CharField(null=False, blank=False, max_length=50, unique=True)
+    created = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=50, default=ASYNC_STATUS_PENDING)
+    # Time at which the processes entered a terminal state
+    terminal_timestamp = models.DateTimeField(null=True, blank=True)
+    failure_message = models.CharField(max_length=255, blank=True)
+    # Process may optionally be associated with a target
+    target = models.ForeignKey(Target, on_delete=models.CASCADE, null=True, blank=True)
+
+    def clean(self):
+        if self.status in ASYNC_TERMINAL_STATES:
+            self.terminal_timestamp = datetime.now()
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def run():
+        """
+        Perform the potentially long-running task. Should raise AsyncError with
+        an appropriate error message on failure.
+        """
+        raise NotImplementedError
