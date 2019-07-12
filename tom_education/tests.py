@@ -643,20 +643,20 @@ class AsyncProcessTestCase(TestCase):
 
 
 class AsyncStatusApiTestCase(TestCase):
+    @patch('django.utils.timezone.now')
     @patch('tom_education.models.datetime')
     @patch('tom_education.views.datetime')
-    def test_api(self, views_dt_mock, models_dt_mock):
-        d1 = datetime(
-            year=2019, month=1, day=2, hour=3, minute=4, second=5, microsecond=6
-        )
+    def test_api(self, views_dt_mock, models_dt_mock, django_mock):
+        d1 = datetime(year=2019, month=1, day=2, hour=3, minute=4, second=5, microsecond=6)
+        d2 = datetime(year=2050, month=1, day=1, hour=1, minute=1, second=1, microsecond=1)
+        d3 = datetime(year=1970, month=1, day=1, hour=1, minute=1, second=1, microsecond=1)
         timestamp1 = d1.timestamp()
-        d2 = datetime(
-            year=2050, month=1, day=1, hour=1, minute=1, second=1, microsecond=1
-        )
         timestamp2 = d2.timestamp()
+        timestamp3 = d3.timestamp()
 
         models_dt_mock.now.return_value = d1
         views_dt_mock.now.return_value = d2
+        django_mock.return_value = d3
 
         target = Target.objects.create(identifier='target123', name='my target')
         proc = AsyncProcess.objects.create(
@@ -675,10 +675,12 @@ class AsyncStatusApiTestCase(TestCase):
         # Construct the dicts representing processes expected in the JSON
         # response
         proc_dict = {
-            'identifier': 'hello'
+            'identifier': 'hello',
+            'created': timestamp3
         }
         failed_proc_dict = {
             'identifier': 'ohno',
+            'created': timestamp3,
             'failure_message': 'oops',
             'terminal_timestamp': timestamp1
         }

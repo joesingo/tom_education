@@ -275,7 +275,8 @@ class AsyncStatusApi(ListView):
 
         for process in qs:
             proc_dict = {
-                'identifier': process.identifier
+                'identifier': process.identifier,
+                'created': process.created.timestamp()
             }
             if process.status == ASYNC_STATUS_FAILED:
                 proc_dict['failure_message'] = process.failure_message or None

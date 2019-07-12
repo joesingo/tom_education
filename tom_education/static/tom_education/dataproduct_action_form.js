@@ -63,8 +63,10 @@ function showProcesses(obj) {
                 continue;
             }
             no_processes = false;
+            var created = new Date(process.created * 1000);
             var $row = $('<tr>');
             $row.append('<td>' + process.identifier + '</td>');
+            $row.append('<td>' + created.toLocaleString() + '</td>');
             var $status_cell = $('<td><b>' + DISPLAY_STAUSES[st] + '</b></td>');
             if (st == 'created') {
                 $status_cell.append(' (refresh to view in data table)');

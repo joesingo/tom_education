@@ -205,6 +205,7 @@ class AsyncProcess(models.Model):
         (ASYNC_STATUS_FAILED, 'Failed')
     )
     identifier = models.CharField(null=False, blank=False, max_length=50, unique=True)
+    created = models.DateTimeField(auto_now_add=True)
     status = models.CharField(
         max_length=50, choices=STATUS_CHOICES, default=ASYNC_STATUS_PENDING
     )
