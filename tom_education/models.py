@@ -245,6 +245,23 @@ class TimelapseProcess(AsyncProcess):
         self.save()
 
 
+class AutovarLogBuffer(StringIO):
+    """
+    Thin wrapper around StringIO that appends to the `logs` field of a
+    `AutovarProcess` on write
+    """
+    def __init__(self, process, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.process = process
+
+    def write(self, s):
+        if not self.process.logs:
+            self.process.logs = ''
+        self.process.logs += s
+        self.process.save()
+        return super().write(s)
+
+
 class AutovarProcess(AsyncProcess):
     # Directories to find output files in after autovar has been run
     output_dirs = ('outputcats', 'outputplots')
@@ -258,10 +275,10 @@ class AutovarProcess(AsyncProcess):
         if not self.input_files.exists():
             raise AsyncError('No input files to analyse')
 
-        output = StringIO()
+        buf = AutovarLogBuffer(self)
         logger = logging.getLogger('autovar')
         logger.setLevel(logging.INFO)
-        logger.addHandler(logging.StreamHandler(output))
+        logger.addHandler(logging.StreamHandler(buf))
 
         with self.autovar_dir() as autovar_dir:
             try:
@@ -276,10 +293,6 @@ class AutovarProcess(AsyncProcess):
                 prod = DataProduct.objects.create(product_id=product_id, target=self.target)
                 prod.group.add(group)
                 prod.data.save(product_id, ContentFile(path.read_bytes()))
-
-        # Save logs
-        output.seek(0)
-        self.logs = output.getvalue()
 
         self.status = ASYNC_STATUS_CREATED
         self.save()
@@ -306,7 +319,7 @@ class AutovarProcess(AsyncProcess):
         """
         targets = np.array([self.target.ra, self.target.dec, 0, 0])
         paths = autovar.folder_setup(autovar_dir)
-        filetype = 'fz'
+        filetype = 'fz'  # TODO: determine this from the input files
         filelist, filtercode = autovar.gather_files(paths, filetype=filetype)
 
         with self.update_status('Finding stars'):

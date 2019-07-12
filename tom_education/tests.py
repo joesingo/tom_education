@@ -1,6 +1,7 @@
 from datetime import datetime
 from io import BytesIO, StringIO
 import json
+import logging
 import os
 from pathlib import Path
 from unittest.mock import patch
@@ -24,9 +25,10 @@ from tom_observations.tests.utils import FakeFacility, FakeFacilityForm
 
 from tom_education.forms import DataProductActionForm, GalleryForm
 from tom_education.models import (
-    AutovarProcess, AsyncError, AsyncProcess, ObservationTemplate,
-    TimelapseDataProduct, TimelapseProcess, DateFieldNotFoundError,
-    ASYNC_STATUS_CREATED, ASYNC_STATUS_PENDING, ASYNC_STATUS_FAILED
+    AutovarLogBuffer, AutovarProcess, AsyncError, AsyncProcess,
+    ObservationTemplate, TimelapseDataProduct, TimelapseProcess,
+    DateFieldNotFoundError, ASYNC_STATUS_CREATED, ASYNC_STATUS_PENDING,
+    ASYNC_STATUS_FAILED
 )
 from tom_education.tasks import make_timelapse
 
@@ -731,7 +733,8 @@ class AsyncStatusApiTestCase(TestCase):
 
 
 def mock_do_autovar(_self, avdir):
-    print("doing the thing")
+    logger = logging.getLogger('autovar.one.two.three')
+    logger.info("doing the thing")
     one = avdir / 'one'
     one.mkdir()
     (one / 'file1.csv').write_text('hello')
@@ -852,3 +855,23 @@ class AutovarTestCase(TestCase):
 
         self.assertEqual(file1_dp.data.read(), b'hello')
         self.assertEqual(file2_dp.data.read(), b'goodbye')
+
+    def test_log_buffer(self):
+        proc = AutovarProcess.objects.create(identifier='someprocess', target=self.target)
+        proc.input_files.add(*self.prods)
+        proc.save()
+
+        buf = AutovarLogBuffer(proc)
+        buf.write('hello there')
+        self.assertEqual(proc.logs, 'hello there')
+        buf.write('. how are you?')
+        self.assertEqual(proc.logs, 'hello there. how are you?')
+
+    def test_logs(self):
+        proc = AutovarProcess.objects.create(identifier='someprocess', target=self.target)
+        proc.input_files.add(*self.prods)
+        proc.save()
+
+        proc.run()
+        # Message comes from mock_do_autovar()
+        self.assertEqual(proc.logs, 'doing the thing\n')
