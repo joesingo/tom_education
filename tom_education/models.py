@@ -20,9 +20,11 @@ from tom_dataproducts.models import DataProduct, DataProductGroup, IMAGE_FILE
 from tom_targets.models import Target
 
 
+# Statuses for asynchronous processes
 ASYNC_STATUS_PENDING = 'pending'
 ASYNC_STATUS_CREATED = 'created'
 ASYNC_STATUS_FAILED = 'failed'
+ASYNC_TERMINAL_STATES = (ASYNC_STATUS_CREATED, ASYNC_STATUS_FAILED)
 
 TIMELAPSE_GIF = 'gif'
 TIMELAPSE_MP4 = 'mp4'
@@ -206,9 +208,19 @@ class AsyncProcess(models.Model):
     status = models.CharField(
         max_length=50, choices=STATUS_CHOICES, default=ASYNC_STATUS_PENDING
     )
+    # Time at which the processes entered a terminal state
+    terminal_timestamp = models.DateTimeField(null=True, blank=True)
     failure_message = models.CharField(max_length=255, blank=True)
     # Process may optionally be associated with a target
-    target = models.ForeignKey(Target, on_delete=models.CASCADE, null=True)
+    target = models.ForeignKey(Target, on_delete=models.CASCADE, null=True, blank=True)
+
+    def clean(self):
+        if self.status in ASYNC_TERMINAL_STATES:
+            self.terminal_timestamp = datetime.now()
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
     def run():
         """
@@ -244,7 +256,7 @@ class AutovarProcess(AsyncProcess):
     output_dirs = ('outputcats', 'outputplots')
 
     input_files = models.ManyToManyField(DataProduct, related_name='autovar')
-    logs = models.TextField()
+    logs = models.TextField(null=True, blank=True)
 
     def run(self):
         if self.target is None:

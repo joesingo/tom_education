@@ -17,7 +17,7 @@ from tom_targets.views import TargetDetailView
 from tom_education.forms import make_templated_form, DataProductActionForm, GalleryForm
 from tom_education.models import (
     AsyncProcess, AutovarProcess, ObservationTemplate, TimelapseDataProduct,
-    ASYNC_STATUS_PENDING, ASYNC_STATUS_CREATED, ASYNC_STATUS_FAILED
+    ASYNC_STATUS_PENDING, ASYNC_STATUS_CREATED, ASYNC_STATUS_FAILED, ASYNC_TERMINAL_STATES
 )
 from tom_education.tasks import analyse_products, make_timelapse
 
@@ -264,6 +264,7 @@ class AsyncStatusApi(ListView):
         statuses = (ASYNC_STATUS_PENDING, ASYNC_STATUS_CREATED, ASYNC_STATUS_FAILED)
         response_dict = {
             'ok': True,
+            'timestamp': datetime.now().timestamp(),
             'processes': {status: [] for status in statuses}
         }
 
@@ -278,6 +279,8 @@ class AsyncStatusApi(ListView):
             }
             if process.status == ASYNC_STATUS_FAILED:
                 proc_dict['failure_message'] = process.failure_message or None
+            if process.terminal_timestamp:
+                proc_dict['terminal_timestamp'] = process.terminal_timestamp.timestamp()
 
             response_dict['processes'][process.status].append(proc_dict)
 

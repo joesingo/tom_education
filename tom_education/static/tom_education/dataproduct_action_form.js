@@ -10,6 +10,10 @@ const AJAX_ACTIONS = {
 };
 var $FORM = $('#dataproduct-action-form');
 
+// Timestamp from the first API response: use this to determine whether a
+// process completed before our first request, in which case we do not show it
+var first_api_response_time = null;
+
 /*
  * Start periodically polling the API to get info on processes for the given
  * target
@@ -25,7 +29,9 @@ function startStatusPolling(target_pk) {
                 showError('An error occurred: ' + data.error);
                 return;
             }
-
+            if (first_api_response_time === null) {
+                first_api_response_time = data.timestamp;
+            }
             if (JSON.stringify(process_statuses) !== JSON.stringify(data)) {
                 process_statuses = data;
                 showProcesses(process_statuses.processes);
@@ -41,15 +47,9 @@ function startStatusPolling(target_pk) {
  * JSON API response
  */
 function showProcesses(obj) {
-    // Find filenames of data products in the data table, so as to not show
-    // created timelapse procecess in two places
-    var filenames = {};
-    $('.product-filename').each(function(index) {
-        filenames[this.innerText] = true;
-    });
-
     var $wrapper = $('#async-table-wrapper');
-    var $empty_message = $wrapper.find("p");
+    var $loading = $wrapper.find("#loading");
+    var $empty_message = $wrapper.find("#no-processes");
     var $table = $wrapper.find('table');
     var $tbody = $table.find('tbody');
     $tbody.html('');
@@ -59,7 +59,7 @@ function showProcesses(obj) {
         var proccess = obj[st];
         for (var i=0; i<proccess.length; i++) {
             var process = proccess[i];
-            if (process.identifier in filenames) {
+            if (process.terminal_timestamp && process.terminal_timestamp < first_api_response_time) {
                 continue;
             }
             no_processes = false;
@@ -77,6 +77,7 @@ function showProcesses(obj) {
         }
     }
 
+    $loading.hide();
     if (no_processes) {
         $table.hide();
         $empty_message.show();

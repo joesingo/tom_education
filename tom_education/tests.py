@@ -625,8 +625,39 @@ class GalleryTestCase(TestCase):
         self.assertEqual(str(messages[0]), 'Added 2 data products to group \'mygroup\'')
 
 
+class AsyncProcessTestCase(TestCase):
+    @patch('tom_education.models.datetime')
+    def test_terminal_timestamp(self, dt_mock):
+        somedate = datetime(
+            year=2019, month=1, day=2, hour=3, minute=4, second=5, microsecond=6
+        )
+        dt_mock.now.return_value = somedate
+
+        proc = AsyncProcess.objects.create(identifier='blah')
+        self.assertTrue(proc.terminal_timestamp is None)
+
+        # Timestamp should be set automatically when saving in a terminal state
+        proc.status = ASYNC_STATUS_FAILED
+        proc.save()
+        self.assertEqual(proc.terminal_timestamp, somedate)
+
+
 class AsyncStatusApiTestCase(TestCase):
-    def test_api(self):
+    @patch('tom_education.models.datetime')
+    @patch('tom_education.views.datetime')
+    def test_api(self, views_dt_mock, models_dt_mock):
+        d1 = datetime(
+            year=2019, month=1, day=2, hour=3, minute=4, second=5, microsecond=6
+        )
+        timestamp1 = d1.timestamp()
+        d2 = datetime(
+            year=2050, month=1, day=1, hour=1, minute=1, second=1, microsecond=1
+        )
+        timestamp2 = d2.timestamp()
+
+        models_dt_mock.now.return_value = d1
+        views_dt_mock.now.return_value = d2
+
         target = Target.objects.create(identifier='target123', name='my target')
         proc = AsyncProcess.objects.create(
             identifier='hello',
@@ -648,13 +679,15 @@ class AsyncStatusApiTestCase(TestCase):
         }
         failed_proc_dict = {
             'identifier': 'ohno',
-            'failure_message': 'oops'
+            'failure_message': 'oops',
+            'terminal_timestamp': timestamp1
         }
 
         response1 = self.client.get(url)
         self.assertEqual(response1.status_code, 200)
         self.assertEqual(response1.json(), {
             'ok': True,
+            'timestamp': timestamp2,
             'processes': {'pending': [proc_dict], 'created': [], 'failed': [failed_proc_dict]}
         })
 
@@ -664,7 +697,12 @@ class AsyncStatusApiTestCase(TestCase):
         self.assertEqual(response2.status_code, 200)
         self.assertEqual(response2.json(), {
             'ok': True,
-            'processes': {'pending': [], 'created': [proc_dict], 'failed': [failed_proc_dict]}
+            'timestamp': timestamp2,
+            'processes': {
+                'pending': [],
+                'created': [dict(proc_dict, terminal_timestamp=timestamp1)],
+                'failed': [failed_proc_dict]
+            }
         })
 
         proc.status = ASYNC_STATUS_FAILED
@@ -673,11 +711,15 @@ class AsyncStatusApiTestCase(TestCase):
         self.assertEqual(response3.status_code, 200)
         self.assertEqual(response3.json(), {
             'ok': True,
+            'timestamp': timestamp2,
             'processes': {
                 'pending': [], 'created': [],
                 # When multiple processes in the same state, they should be
                 # sorted by product ID ('hello' and 'ohno' in this case)
-                'failed': [dict(proc_dict, failure_message=None), failed_proc_dict]
+                'failed': [
+                    dict(proc_dict, failure_message=None, terminal_timestamp=timestamp1),
+                    failed_proc_dict
+                ]
             }
         })
 
