@@ -668,8 +668,10 @@ class AsyncStatusApiTestCase(TestCase):
             target=target,
             status=ASYNC_STATUS_PENDING,
         )
+        # Make a failed process with a different creation time
+        # Have it an AutovarProcess to check 'view_url' is provided
         django_mock.return_value = create_time2
-        failed_proc = AsyncProcess.objects.create(
+        failed_proc = AutovarProcess.objects.create(
             identifier='ohno',
             target=target,
             status=ASYNC_STATUS_FAILED,
@@ -688,7 +690,8 @@ class AsyncStatusApiTestCase(TestCase):
             'created': create_timestamp2,
             'status': 'failed',
             'failure_message': 'oops',
-            'terminal_timestamp': terminal_timestamp
+            'terminal_timestamp': terminal_timestamp,
+            'view_url': reverse('tom_education:autovar_detail', kwargs={'pk': failed_proc.pk})
         }
 
         response1 = self.client.get(url)
@@ -875,3 +878,16 @@ class AutovarTestCase(TestCase):
         proc.run()
         # Message comes from mock_do_autovar()
         self.assertEqual(proc.logs, 'doing the thing\n')
+
+    def test_view(self):
+        proc_with_target = AutovarProcess.objects.create(identifier='someprocess', target=self.target)
+        url = reverse('tom_education:autovar_detail', kwargs={'pk': proc_with_target.pk})
+        target_url = reverse('tom_targets:detail', kwargs={'pk': self.target.pk})
+        response = self.client.get(url)
+        self.assertIn('target_url', response.context)
+        self.assertEqual(response.context['target_url'], target_url)
+
+        proc_without_target = AutovarProcess.objects.create(identifier='targetless')
+        url2 = reverse('tom_education:autovar_detail', kwargs={'pk': proc_without_target.pk})
+        response2 = self.client.get(url2)
+        self.assertNotIn('target_url', response2.context)

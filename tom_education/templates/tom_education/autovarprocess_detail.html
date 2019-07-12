@@ -1,0 +1,48 @@
+{% extends 'tom_common/base.html' %}
+{% load static %}
+
+{% block title %}Autovar process {{ object.identifer }}{% endblock %}
+
+{% block additional_css %}
+<link rel="stylesheet" href="{% static 'tom_education/css/autovarprocess_detail.css' %}">
+{% endblock %}
+
+{% block content %}
+
+<h2>{{ object.identifier }}</h2>
+
+<div class="row">
+    <div class="col-md-4">
+        <!-- Side panel -->
+        <dl class="row">
+            <dt class="col-sm-6">Created</dt>
+            <dd>{{ object.created }}</dd>
+
+            <dt class="col-sm-6">Status</dt>
+            <dd>
+                {{ object.status|capfirst }}
+                {% if object.failure_message %}
+                    ({{ object.failure_message }})
+                {% endif %}
+            </dd>
+
+            <dt class="col-sm-6">Finished</dt>
+            <dd>{{ object.terminal_timestamp|default:'N/A' }}</dd>
+
+            {% if object.target %}
+                <dt class="col-sm-6">Target</dt>
+                <dd>
+                    <a href="{{ target_url }}" title="View the associated target">
+                        {{ object.target.identifier|truncatechars:20 }}
+                    </a>
+                </dd>
+            {% endif %}
+        </dl>
+    </div>
+    <div class="col-md-8">
+        <h4>Log output</h4>
+        <pre class="logs"><code>{{ object.logs|default:"No log output" }}</code></pre>
+    </div>
+</div>
+
+{% endblock %}

@@ -8,6 +8,7 @@ from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseRedire
 from django.utils.http import urlencode
 from django.views.generic import ListView, FormView
 from django.views.generic.edit import FormMixin
+from django.views.generic.detail import DetailView
 from django.shortcuts import redirect, reverse
 from tom_dataproducts.models import DataProduct
 from tom_observations.views import ObservationCreateView
@@ -283,9 +284,23 @@ class AsyncStatusApi(ListView):
                 proc_dict['failure_message'] = process.failure_message or None
             if process.terminal_timestamp:
                 proc_dict['terminal_timestamp'] = process.terminal_timestamp.timestamp()
+            # Special case for AutovarProcess objects: provide link to detail view
+            if hasattr(process, 'autovarprocess'):
+                view_url = reverse('tom_education:autovar_detail', kwargs={'pk': process.pk})
+                proc_dict['view_url'] = view_url
 
             response_dict['processes'].append(proc_dict)
 
         # Sort processes by creation time (most recent first)
         response_dict['processes'].sort(key=lambda d: d['created'], reverse=True)
         return JsonResponse(response_dict)
+
+
+class AutovarProcessDetailView(DetailView):
+    model = AutovarProcess
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        if self.object.target:
+            context['target_url'] = reverse('tom_targets:detail', kwargs={'pk': self.object.target.pk})
+        return context

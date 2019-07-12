@@ -64,7 +64,11 @@ function showProcesses(obj) {
         var $row = $('<tr>');
         $row.append('<td>' + process.identifier + '</td>');
         $row.append('<td>' + created.toLocaleString() + '</td>');
-        var $status_cell = $('<td><b>' + getDisplayStatus(process.status) + '</b></td>');
+        var status_text = '<b>' + getDisplayStatus(process.status) + '</b>';
+        if (process.view_url) {
+            status_text += ` (<a href="${process.view_url}" title="View process details">View</a>)`;
+        }
+        var $status_cell = $('<td>' + status_text + '</td>');
         if (process.status == 'created') {
             $status_cell.append(' (refresh to view in data table)');
         }
