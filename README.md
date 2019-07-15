@@ -2,6 +2,22 @@
 
 Plugin for the TOM Toolkit adding features intended for educational use.
 
+## Features
+
+* [Templated observation forms](doc/templated_observation_forms.md): Save the
+  fields in the observation creation form as a template to make it easier to
+  create multiple observations with similar parameters.
+
+* [Timelapses](doc/timelapses.md): Create a timelapse of FITS data products for a
+ target. Timelapses can be created as animated GIFs or MP4 or WebM videos.
+
+* [Data gallery](doc/gallery.md): View a gallery of thumbnails of FITS files which
+  allows files to be selected and added to a data product group.
+
+* [Autovar processing](doc/autovar.md): Run the
+  [autovar](https://github.com/zemogle/autovar/) pipeline of a selection of
+  files and save the outputs as data products in the TOM.
+
 ## Installation
 
 1. Set up a TOM following the [getting started guide](https://tomtoolkit.github.io/docs/getting_started).
@@ -34,61 +50,3 @@ python manage.py tom_education_setup
 ```
 python manage.py test tom_education
 ```
-
-## Features
-
-### Templated observation forms
-
-When creating a new observation, the form fields can be saved as a template.
-Future observations can then be created from the template with all fields
-identical except for 'group ID', which has the date appended to it.
-
-### Timelapses
-
-On the detailed view for a target, a timelapse of FITS data products can be
-created as animated GIFs or MP4 or WebM video. Options can be configured with
-`TOM_EDUCATION_TIMELAPSE_SETTINGS` in `settings.py`, e.g.
-
-```python
-TOM_EDUCATION_TIMELAPSE_SETTINGS = {
-    'format': 'webm',
-    'fps': 15
-}
-```
-
-The creation of timelapses is asynchronous to avoid long page-load times. This
-can optionally be done by separate worker processes in a queue using
-[Dramatiq](https://dramatiq.io/) via
-[django_dramatiq](https://github.com/Bogdanp/django_dramatiq) and
-[Redis](https://redis.io/) or [RabbitMQ](https://www.rabbitmq.com/).
-
-To do so, uncomment the `django_dramatiq` line from `INSTALLED_APPS` in
-`settings.py`, and install the dependencies:
-
-```
-pip install django_dramatiq
-pip install redis  # if using Redis
-```
-
-To start the worker processes, using the `rundramatiq` management command from
-`django_dramatiq`:
-
-```
-python manage.py rundramatiq
-```
-
-(If this fails with an error message regarding `--watch`, try `pip install
-watchdog_gevent` first).
-
-#### Management Command
-
-Timelapses can also be created through the management command `create_timelapses`.
-
-```
-./manage.py create_timelapse <target PK>
-```
-
-This will create a timelapse for all reduced data products associated with the
-given target that are contained in the data product group 'Good quality data'.
-This group name can be changed by setting `TOM_EDUCATION_TIMELAPSE_GROUP_NAME`
-in `settings.py`.
