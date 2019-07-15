@@ -17,18 +17,25 @@ process as `DataProduct` objects.
 ## Defining a pipeline
 
 Pipelines are defined by creating a sub-class of
-`tom_education.models.PipelineProcess` in a `pipelines.py` file within your
-project.
+`tom_education.models.PipelineProcess` somewhere within your project, and
+referencing them from `settings.py`, e.g:
 
-The following class serves as a minimal example showing the attributes/methods
-that must be defined.
+```python
+...
+TOM_EDUCATION_PIPLINES = {
+    # name: pipeline class. The name will be shown in the UI
+    'My pipeline': 'my_project.pipelines.MyPipeline'
+}
+...
+```
+
+The following class serves as a minimal example showing the methods that must
+be defined.
 
 ```python
 from tom_education.models import PipelineProcess
 
 class MyPipeline(PipelineProcess):
-    name = "My pipeline"  # This is the name shown in the UI
-
     def do_pipeline(self, tmpdir):
         """
         This method does the actual work.
