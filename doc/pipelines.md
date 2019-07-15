@@ -36,6 +36,11 @@ be defined.
 from tom_education.models import PipelineProcess
 
 class MyPipeline(PipelineProcess):
+    # Make this a proxy model: we do not want this to be a concrete model
+    # (which would use a separate DB table and require migrations)
+    class Meta:
+        proxy = True
+
     def do_pipeline(self, tmpdir):
         """
         This method does the actual work.
@@ -65,6 +70,24 @@ class MyPipeline(PipelineProcess):
         return [outcsv]
 ```
 
+## Errors
+
+To stop a process and mark it as a failure, raise a `tom_education.models.AsyncError` exception:
+
+```python
+from tom_education.models import AsyncError
+...
+
+class MyPipeline(PipelineProcess):
+    ...
+    def do_pipeline(self, tmpdir):
+        raise AsyncError('Something went terribly wrong')
+```
+
+This will set the `status` field of the process to
+`tom_education.models.ASYNC_STATUS_FAILED`, and the given error message will be
+shown in the UI.
+
 ## Status updates
 
 For long-running pipelines, or ones with several steps, it may be useful to set
@@ -88,6 +111,10 @@ def do_pipeline(self, tmpdir):
     ...
 ```
 
+On successful completion of the process (that is, if `do_pipeline()` finishes
+without raising a `AsyncError`), the status is set to
+`tom_education.models.ASYNC_STATUS_CREATED`.
+
 ## Log output
 
 More granular updates can be given by logging messages with `self.log()`:
@@ -102,20 +129,3 @@ def do_pipeline(self, tmpdir):
 ```
 
 Log output is also shown in the UI on the page for a process.
-
-## Errors
-
-To stop a process and mark it as a failure, raise a `tom_education.models.AsyncError` exception:
-
-```python
-from tom_education.models import AsyncError
-...
-
-class MyPipeline(PipelineProcess):
-    ...
-    def do_pipeline(self, tmpdir):
-        raise AsyncError('Something went terribly wrong')
-```
-
-This will set the `status` field of the process to `failed`, and the given
-error message will be shown in the UI.
