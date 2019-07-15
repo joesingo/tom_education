@@ -14,9 +14,8 @@ Plugin for the TOM Toolkit adding features intended for educational use.
 * [Data gallery](doc/gallery.md): View a gallery of thumbnails of FITS files which
   allows files to be selected and added to a data product group.
 
-* [Autovar processing](doc/autovar.md): Run the
-  [autovar](https://github.com/zemogle/autovar/) pipeline of a selection of
-  files and save the outputs as data products in the TOM.
+* [Data pipelines](doc/pipelines.md): Run a user-supplied data pipeline on a
+  selection of files and save the outputs as data products in the TOM.
 
 ## Installation
 
