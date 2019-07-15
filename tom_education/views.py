@@ -17,8 +17,9 @@ from tom_targets.views import TargetDetailView
 
 from tom_education.forms import make_templated_form, DataProductActionForm, GalleryForm
 from tom_education.models import (
-    AsyncProcess, AutovarProcess, ObservationTemplate, TimelapseDataProduct,
-    ASYNC_STATUS_PENDING, ASYNC_STATUS_CREATED, ASYNC_STATUS_FAILED, ASYNC_TERMINAL_STATES
+    AsyncProcess, AutovarProcess, PipelineProcess, ObservationTemplate,
+    TimelapseDataProduct, ASYNC_STATUS_PENDING, ASYNC_STATUS_CREATED,
+    ASYNC_STATUS_FAILED, ASYNC_TERMINAL_STATES
 )
 from tom_education.tasks import analyse_products, make_timelapse
 
@@ -169,13 +170,14 @@ class ActionableTargetDetailView(FormMixin, TargetDetailView):
         now = datetime.now()
         date_str = now.strftime('%Y-%m-%d-%H%M%S')
         identifier = 'analysis_{}_{}'.format(target.identifier, date_str)
-        process = AutovarProcess.objects.create(
+        pipeline_cls = AutovarProcess  # TODO: construct possible cls's dynamically and let user choose
+        process = pipeline_cls.objects.create(
             identifier=identifier,
             target=target
         )
         process.input_files.add(*products)
         process.save()
-        analyse_products.send(process.pk)
+        analyse_products.send(process.pk, AutovarProcess.__name__)
         return JsonResponse({'ok': True})
 
     def handle_view_gallery(self, products, form):
@@ -284,9 +286,9 @@ class AsyncStatusApi(ListView):
                 proc_dict['failure_message'] = process.failure_message or None
             if process.terminal_timestamp:
                 proc_dict['terminal_timestamp'] = process.terminal_timestamp.timestamp()
-            # Special case for AutovarProcess objects: provide link to detail view
-            if hasattr(process, 'autovarprocess'):
-                view_url = reverse('tom_education:autovar_detail', kwargs={'pk': process.pk})
+            # Special case for PipelineProcess objects: provide link to detail view
+            if hasattr(process, 'pipelineprocess'):
+                view_url = reverse('tom_education:pipeline_detail', kwargs={'pk': process.pk})
                 proc_dict['view_url'] = view_url
 
             response_dict['processes'].append(proc_dict)
@@ -296,8 +298,8 @@ class AsyncStatusApi(ListView):
         return JsonResponse(response_dict)
 
 
-class AutovarProcessDetailView(DetailView):
-    model = AutovarProcess
+class PipelineProcessDetailView(DetailView):
+    model = PipelineProcess
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -306,11 +308,11 @@ class AutovarProcessDetailView(DetailView):
         return context
 
 
-class AutovarProcessApi(DetailView):
+class PipelineProcessApi(DetailView):
     """
-    Return information about an AutovarProcess in a JSON response
+    Return information about a PipelineProcess in a JSON response
     """
-    model = AutovarProcess
+    model = PipelineProcess
 
     def get_object(self, **kwargs):
         pk = self.kwargs.get(self.pk_url_kwarg)
@@ -319,8 +321,8 @@ class AutovarProcessApi(DetailView):
     def get(self, request, *args, **kwargs):
         try:
             process = self.get_object()
-        except AutovarProcess.DoesNotExist:
-            return JsonResponse({'ok': False, 'error': 'Autovar process not found'}, status=404)
+        except PipelineProcess.DoesNotExist:
+            return JsonResponse({'ok': False, 'error': 'Pipeline process not found'}, status=404)
 
         response_dict = {
             'ok': True,

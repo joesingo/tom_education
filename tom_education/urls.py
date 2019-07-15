@@ -3,9 +3,9 @@ from django.urls import path
 from tom_education.views import (
     ActionableTargetDetailView,
     AsyncStatusApi,
-    AutovarProcessApi,
-    AutovarProcessDetailView,
     GalleryView,
+    PipelineProcessApi,
+    PipelineProcessDetailView,
     TemplatedObservationCreateView,
 )
 
@@ -15,7 +15,7 @@ urlpatterns = [
     path('observations/<str:facility>/create/', TemplatedObservationCreateView.as_view(), name='create_obs'),
     path('targets/<int:pk>/', ActionableTargetDetailView.as_view(), name='target_detail'),
     path('async/status/<target>/', AsyncStatusApi.as_view(), name='async_process_status_api'),
-    path('autovar/<pk>', AutovarProcessDetailView.as_view(), name='autovar_detail'),
-    path('autovar/logs/<pk>', AutovarProcessApi.as_view(), name='autovar_api'),
+    path('pipeline/<pk>', PipelineProcessDetailView.as_view(), name='pipeline_detail'),
+    path('pipeline/logs/<pk>', PipelineProcessApi.as_view(), name='pipeline_api'),
     path('gallery/', GalleryView.as_view(), name='gallery'),
 ]

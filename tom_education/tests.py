@@ -4,6 +4,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import tempfile
 from unittest.mock import patch
 
 from astropy.io import fits
@@ -27,8 +28,8 @@ from tom_education.forms import DataProductActionForm, GalleryForm
 from tom_education.models import (
     AutovarLogBuffer, AutovarProcess, AsyncError, AsyncProcess,
     ObservationTemplate, TimelapseDataProduct, TimelapseProcess,
-    DateFieldNotFoundError, ASYNC_STATUS_CREATED, ASYNC_STATUS_PENDING,
-    ASYNC_STATUS_FAILED
+    PipelineProcess, DateFieldNotFoundError, ASYNC_STATUS_CREATED,
+    ASYNC_STATUS_PENDING, ASYNC_STATUS_FAILED
 )
 from tom_education.tasks import make_timelapse
 
@@ -669,9 +670,9 @@ class AsyncStatusApiTestCase(TestCase):
             status=ASYNC_STATUS_PENDING,
         )
         # Make a failed process with a different creation time
-        # Have it an AutovarProcess to check 'view_url' is provided
+        # Have it an PipelineProcess to check 'view_url' is provided
         django_mock.return_value = create_time2
-        failed_proc = AutovarProcess.objects.create(
+        failed_proc = PipelineProcess.objects.create(
             identifier='ohno',
             target=target,
             status=ASYNC_STATUS_FAILED,
@@ -691,7 +692,7 @@ class AsyncStatusApiTestCase(TestCase):
             'status': 'failed',
             'failure_message': 'oops',
             'terminal_timestamp': terminal_timestamp,
-            'view_url': reverse('tom_education:autovar_detail', kwargs={'pk': failed_proc.pk})
+            'view_url': reverse('tom_education:pipeline_detail', kwargs={'pk': failed_proc.pk})
         }
 
         response1 = self.client.get(url)
@@ -735,17 +736,21 @@ class AsyncStatusApiTestCase(TestCase):
         self.assertEqual(response4.json(), {'ok': False, 'error': 'Target not found'})
 
 
-def mock_do_autovar(_self, avdir):
-    logger = logging.getLogger('autovar.one.two.three')
-    logger.info("doing the thing")
-    one = avdir / 'one'
-    one.mkdir()
-    (one / 'file1.csv').write_text('hello')
-    (one / 'file2.png').write_text('goodbye')
+class FakePipeline(PipelineProcess):
+    class Meta:
+        proxy = True
+
+    def do_pipeline(self, tmpdir):
+        self.log("doing the thing")
+        file1 = tmpdir / 'file1.csv'
+        file2 = tmpdir / 'file2.png'
+        file1.write_text('hello')
+        file2.write_text('goodbye')
+        self.log("and another thing")
+        return (file1, file2)
 
 
-@patch('tom_education.models.AutovarProcess.do_autovar', mock_do_autovar)
-class AutovarTestCase(TestCase):
+class BasePipelineTestCase(TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -757,84 +762,20 @@ class AutovarTestCase(TestCase):
             fn = f'{prod.product_id}_file'
             prod.data.save(fn, File(BytesIO()))
 
+class PipelineTestCase(BasePipelineTestCase):
     def test_no_target(self):
-        proc = AutovarProcess.objects.create(identifier='notarget', target=None)
+        proc = FakePipeline.objects.create(identifier='notarget', target=None)
         proc.input_files.add(*self.prods)
         with self.assertRaises(AsyncError):
             proc.run()
 
     def test_no_input_files(self):
-        proc = AutovarProcess.objects.create(identifier='notarget', target=self.target)
+        proc = FakePipeline.objects.create(identifier='notarget', target=self.target)
         with self.assertRaises(AsyncError):
             proc.run()
 
-    def test_tmpdir_creation(self):
-        proc = AutovarProcess.objects.create(identifier='someprocess', target=self.target)
-        proc.input_files.add(*self.prods)
-        proc.save()
-
-        with proc.autovar_dir() as avdir:
-            self.assertTrue(isinstance(avdir, Path))
-            listing = {p.name for p in avdir.iterdir()}
-            self.assertEqual(listing, {
-                'test_0_file', 'test_1_file', 'test_2_file', 'test_3_file'
-            })
-
-    def test_tmpdir_cleanup(self):
-        """
-        Check that the temporary dir is deleted after processing, even in the
-        case of an error
-        """
-        proc = AutovarProcess.objects.create(identifier='someprocess', target=self.target)
-        proc.input_files.add(*self.prods)
-        proc.save()
-
-        path1 = None
-        path2 = None
-        with proc.autovar_dir() as avdir:
-            path1 = Path(avdir.absolute())
-        try:
-            with proc.autovar_dir() as avdir:
-                path2 = Path(avdir.absolute())
-                raise AsyncError('blah')
-        except AsyncError:
-            pass
-
-        self.assertFalse(path1.exists())
-        self.assertFalse(path2.exists())
-
-    @patch('tom_education.models.AutovarProcess.output_dirs', ['one', 'two', 'nonexistant'])
-    def test_gather_outputs(self):
-        proc = AutovarProcess.objects.create(identifier='someprocess', target=self.target)
-        proc.input_files.add(*self.prods)
-        proc.save()
-
-        with proc.autovar_dir() as avdir:
-            one = avdir / 'one'
-            one_subdir = one / 'subdir'
-            two = avdir / 'two'
-            three = avdir / 'three'
-            one.mkdir()
-            one_subdir.mkdir()
-            two.mkdir()
-            three.mkdir()
-
-            file1 = one / 'file1.png'
-            file2 = one / 'file2.bmp'
-            file3 = two / 'file3.tar.gz'
-            file4 = three / 'file4.txt'
-
-            file1.write_text('hello')
-            file2.write_text('hello')
-            file3.write_text('hello')
-            file4.write_text('hello')
-
-            outputs = set(proc.gather_outputs(avdir))
-            self.assertEqual(outputs, {file1, file2, file3})
-
-    @patch('tom_education.models.AutovarProcess.output_dirs', ['one'])
     def test_create_group(self):
-        proc = AutovarProcess.objects.create(identifier='someprocess', target=self.target)
+        proc = FakePipeline.objects.create(identifier='someprocess', target=self.target)
         proc.input_files.add(*self.prods)
         proc.save()
 
@@ -853,44 +794,41 @@ class AutovarTestCase(TestCase):
         self.assertEqual(proc.group.name, 'someprocess_outputs')
         self.assertEqual(proc.group.dataproduct_set.count(), 2)
 
+        # Output names and contents come from FakePipeline.do_pipeline
         file1_dp = DataProduct.objects.get(product_id='someprocess_file1.csv')
         file2_dp = DataProduct.objects.get(product_id='someprocess_file2.png')
-
         self.assertEqual(file1_dp.data.read(), b'hello')
         self.assertEqual(file2_dp.data.read(), b'goodbye')
 
-    def test_log_buffer(self):
-        proc = AutovarProcess.objects.create(identifier='someprocess', target=self.target)
-        proc.input_files.add(*self.prods)
-        proc.save()
-
-        buf = AutovarLogBuffer(proc)
-        buf.write('hello there')
-        self.assertEqual(proc.logs, 'hello there')
-        buf.write('. how are you?')
-        self.assertEqual(proc.logs, 'hello there. how are you?')
-
     def test_logs(self):
-        proc = AutovarProcess.objects.create(identifier='someprocess', target=self.target)
+        proc = FakePipeline.objects.create(identifier='someprocess', target=self.target)
         proc.input_files.add(*self.prods)
         proc.save()
-
         proc.run()
-        # Message comes from mock_do_autovar()
-        self.assertEqual(proc.logs, 'doing the thing\n')
+        # Message comes from FakePipeline
+        self.assertEqual(proc.logs, 'doing the thing\nand another thing\n')
+
+    def test_update_status(self):
+        class StatusTestPipeline(PipelineProcess):
+            class Meta:
+                proxy = True
+            def do_pipeline(pself, tmpdir):
+                with pself.update_status('doing something important'):
+                    self.assertEqual(pself.status, 'doing something important')
+                return []
+
+        proc = StatusTestPipeline.objects.create(identifier='someprocess', target=self.target)
+        proc.input_files.add(*self.prods)
+        proc.save()
+        proc.run()
 
     def test_view(self):
-        proc_with_target = AutovarProcess.objects.create(identifier='someprocess', target=self.target)
-        url = reverse('tom_education:autovar_detail', kwargs={'pk': proc_with_target.pk})
+        proc_with_target = FakePipeline.objects.create(identifier='someprocess', target=self.target)
+        url = reverse('tom_education:pipeline_detail', kwargs={'pk': proc_with_target.pk})
         target_url = reverse('tom_targets:detail', kwargs={'pk': self.target.pk})
         response = self.client.get(url)
         self.assertIn('target_url', response.context)
         self.assertEqual(response.context['target_url'], target_url)
-
-        proc_without_target = AutovarProcess.objects.create(identifier='targetless')
-        url2 = reverse('tom_education:autovar_detail', kwargs={'pk': proc_without_target.pk})
-        response2 = self.client.get(url2)
-        self.assertNotIn('target_url', response2.context)
 
     @patch('django.utils.timezone.now')
     @patch('tom_education.models.async_process.datetime')
@@ -902,7 +840,7 @@ class AutovarTestCase(TestCase):
             year=1970, month=1, day=1, hour=0, minute=5, second=0, microsecond=0
         )
 
-        proc = AutovarProcess.objects.create(
+        proc = FakePipeline.objects.create(
             target=self.target,
             identifier='someprocess',
             status='somestatus'
@@ -910,7 +848,7 @@ class AutovarTestCase(TestCase):
         proc.input_files.add(*self.prods)
         proc.save()
 
-        url = reverse('tom_education:autovar_api', kwargs={'pk': proc.pk})
+        url = reverse('tom_education:pipeline_api', kwargs={'pk': proc.pk})
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {
@@ -955,6 +893,62 @@ class AutovarTestCase(TestCase):
         })
 
         # Bad PK should give 404
-        response4 = self.client.get(reverse('tom_education:autovar_api', kwargs={'pk': 100000}))
+        response4 = self.client.get(reverse('tom_education:pipeline_api', kwargs={'pk': 100000}))
         self.assertEqual(response4.status_code, 404)
-        self.assertEqual(response4.json(), {'ok': False, 'error': 'Autovar process not found'})
+        self.assertEqual(response4.json(), {'ok': False, 'error': 'Pipeline process not found'})
+
+
+class AutovarProcessTestCase(BasePipelineTestCase):
+    def test_copy_input_files(self):
+        proc = AutovarProcess.objects.create(identifier='someprocess', target=self.target)
+        proc.input_files.add(*self.prods)
+        proc.save()
+
+        with tempfile.TemporaryDirectory() as tmpdir_name:
+            tmpdir = Path(tmpdir_name)
+            proc.copy_input_files(tmpdir)
+            listing = {p.name for p in tmpdir.iterdir()}
+        self.assertEqual(listing, {
+            'test_0_file', 'test_1_file', 'test_2_file', 'test_3_file'
+        })
+
+    @patch('tom_education.models.AutovarProcess.output_dirs', ['one', 'two', 'nonexistant'])
+    def test_gather_outputs(self):
+        proc = AutovarProcess.objects.create(identifier='someprocess', target=self.target)
+        proc.input_files.add(*self.prods)
+        proc.save()
+
+        with tempfile.TemporaryDirectory() as tmpdir_name:
+            tmpdir = Path(tmpdir_name)
+            one = tmpdir / 'one'
+            one_subdir = one / 'subdir'
+            two = tmpdir / 'two'
+            three = tmpdir / 'three'
+            one.mkdir()
+            one_subdir.mkdir()
+            two.mkdir()
+            three.mkdir()
+
+            file1 = one / 'file1.png'
+            file2 = one / 'file2.bmp'
+            file3 = two / 'file3.tar.gz'
+            file4 = three / 'file4.txt'
+
+            file1.write_text('hello')
+            file2.write_text('hello')
+            file3.write_text('hello')
+            file4.write_text('hello')
+
+            outputs = set(proc.gather_outputs(tmpdir))
+        self.assertEqual(outputs, {file1, file2, file3})
+
+    def test_log_buffer(self):
+        proc = AutovarProcess.objects.create(identifier='someprocess', target=self.target)
+        proc.input_files.add(*self.prods)
+        proc.save()
+
+        buf = AutovarLogBuffer(proc)
+        buf.write('hello there')
+        self.assertEqual(proc.logs, 'hello there')
+        buf.write('. how are you?')
+        self.assertEqual(proc.logs, 'hello there. how are you?')

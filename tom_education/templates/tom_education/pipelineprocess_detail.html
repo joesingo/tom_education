@@ -1,10 +1,10 @@
 {% extends 'tom_common/base.html' %}
 {% load static tom_education_extras %}
 
-{% block title %}Autovar process {{ object.identifer }}{% endblock %}
+{% block title %}Pipeline process {{ object.identifer }}{% endblock %}
 
 {% block additional_css %}
-<link rel="stylesheet" href="{% static 'tom_education/css/autovarprocess_detail.css' %}">
+<link rel="stylesheet" href="{% static 'tom_education/css/pipelineprocess_detail.css' %}">
 {% endblock %}
 
 {% block content %}
@@ -50,9 +50,9 @@
 </div>
 
 <script type='text/javascript'>
-    const AUTOVAR_PROCESS_PK = "{{ object.pk }}";
+    const PIPELINE_PROCESS_PK = "{{ object.pk }}";
 </script>
 <script type='text/javascript' src='{% static 'tom_education/common.js' %}'></script>
-<script type='text/javascript' src='{% static 'tom_education/autovarprocess_detail.js' %}'></script>
+<script type='text/javascript' src='{% static 'tom_education/pipelineprocess_detail.js' %}'></script>
 
 {% endblock %}

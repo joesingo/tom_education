@@ -2,9 +2,9 @@ import sys
 
 from django.conf import settings
 
+import tom_education.models as education_models
 from tom_education.models import (
-    AsyncError, AutovarProcess, TimelapseDataProduct, TimelapseProcess,
-    ASYNC_STATUS_FAILED
+    AsyncError, TimelapseDataProduct, TimelapseProcess, ASYNC_STATUS_FAILED
 )
 
 def task(func, **kwargs):
@@ -37,11 +37,16 @@ def make_timelapse(tl_prod_pk):
     run_process(process)
 
 @task
-def analyse_products(process_pk):
+def analyse_products(process_pk, cls_name):
     try:
-        process = AutovarProcess.objects.get(pk=process_pk)
-    except AutovarProcess.DoesNotExist:
-        print('warning: could not find AutovarProcess with PK {}'.format(process_pk),
+        cls = getattr(education_models, cls_name)
+    except AttributeError:
+        print('warning: model \'{}\' not found'.format(cls_name), file=sys.stderr)
+        return
+    try:
+        process = cls.objects.get(pk=process_pk)
+    except cls.DoesNotExist:
+        print('warning: could not find {} with PK {}'.format(cls.__name__, process_pk),
               file=sys.stderr)
         return
     run_process(process)
