@@ -35,6 +35,7 @@ class AutovarProcess(AsyncProcess):
     output_dirs = ('outputcats', 'outputplots')
 
     input_files = models.ManyToManyField(DataProduct, related_name='autovar')
+    group = models.ForeignKey(DataProductGroup, null=True, blank=True, on_delete=models.SET_NULL)
     logs = models.TextField(null=True, blank=True)
 
     def run(self):
@@ -55,11 +56,11 @@ class AutovarProcess(AsyncProcess):
                 raise AsyncError(str(ex))
 
             # Get outputs
-            group = DataProductGroup.objects.create(name=f'{self.identifier}_outputs')
+            self.group = DataProductGroup.objects.create(name=f'{self.identifier}_outputs')
             for path in self.gather_outputs(autovar_dir):
                 product_id = f'{self.identifier}_{path.name}'
                 prod = DataProduct.objects.create(product_id=product_id, target=self.target)
-                prod.group.add(group)
+                prod.group.add(self.group)
                 prod.data.save(product_id, ContentFile(path.read_bytes()))
 
         self.status = ASYNC_STATUS_CREATED

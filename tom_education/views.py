@@ -333,5 +333,9 @@ class AutovarProcessApi(DetailView):
             response_dict['failure_message'] = process.failure_message or None
         if process.terminal_timestamp:
             response_dict['terminal_timestamp'] = process.terminal_timestamp.timestamp()
+        if process.group:
+            kwargs = {'pk': process.group.pk}
+            response_dict['group_name'] = process.group.name
+            response_dict['group_url'] = reverse('tom_dataproducts:group-detail', kwargs=kwargs)
 
         return JsonResponse(response_dict)

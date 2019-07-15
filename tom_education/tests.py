@@ -849,9 +849,9 @@ class AutovarTestCase(TestCase):
         self.assertEqual(post_dp_count, pre_dp_count + 2)
         self.assertEqual(post_group_count, pre_group_count + 1)
 
-        group = DataProductGroup.objects.first()
-        self.assertEqual(group.name, 'someprocess_outputs')
-        self.assertEqual(group.dataproduct_set.count(), 2)
+        self.assertTrue(proc.group is not None)
+        self.assertEqual(proc.group.name, 'someprocess_outputs')
+        self.assertEqual(proc.group.dataproduct_set.count(), 2)
 
         file1_dp = DataProduct.objects.get(product_id='someprocess_file1.csv')
         file2_dp = DataProduct.objects.get(product_id='someprocess_file2.png')
@@ -922,6 +922,7 @@ class AutovarTestCase(TestCase):
         })
 
         proc.run()
+        group_url = reverse('tom_dataproducts:group-detail', kwargs={'pk': proc.group.pk})
         response2 = self.client.get(url)
         self.assertEqual(response2.status_code, 200)
         self.assertEqual(response2.json(), {
@@ -930,6 +931,8 @@ class AutovarTestCase(TestCase):
             'created': 300,
             'status': ASYNC_STATUS_CREATED,
             'terminal_timestamp': 360,
+            'group_url': group_url,
+            'group_name': 'someprocess_outputs',
             'logs': proc.logs
         })
 
@@ -946,6 +949,8 @@ class AutovarTestCase(TestCase):
             'status': ASYNC_STATUS_FAILED,
             'terminal_timestamp': 360,
             'failure_message': 'something went wrong',
+            'group_url': group_url,
+            'group_name': 'someprocess_outputs',
             'logs': proc.logs
         })
 
