@@ -1,5 +1,5 @@
 {% extends 'tom_common/base.html' %}
-{% load static %}
+{% load static tom_education_extras %}
 
 {% block title %}Autovar process {{ object.identifer }}{% endblock %}
 
@@ -16,18 +16,13 @@
         <!-- Side panel -->
         <dl class="row">
             <dt class="col-sm-6">Created</dt>
-            <dd>{{ object.created }}</dd>
+            <dd id="process-created">{% loading_message %}</dd>
 
             <dt class="col-sm-6">Status</dt>
-            <dd>
-                {{ object.status|capfirst }}
-                {% if object.failure_message %}
-                    ({{ object.failure_message }})
-                {% endif %}
-            </dd>
+            <dd id="process-status">{% loading_message %}</dd>
 
             <dt class="col-sm-6">Finished</dt>
-            <dd>{{ object.terminal_timestamp|default:'N/A' }}</dd>
+            <dd id="process-finished">{% loading_message %}</dd>
 
             {% if object.target %}
                 <dt class="col-sm-6">Target</dt>
@@ -41,8 +36,20 @@
     </div>
     <div class="col-md-8">
         <h4>Log output</h4>
-        <pre class="logs"><code>{{ object.logs|default:"No log output" }}</code></pre>
+        <p>
+            <label>
+                <input type="checkbox" id="follow-logs" />
+                Automatically scroll logs
+            </label>
+        </p>
+        <pre class="logs"><code>{% loading_message %}</code></pre>
     </div>
 </div>
+
+<script type='text/javascript'>
+    const AUTOVAR_PROCESS_PK = "{{ object.pk }}";
+</script>
+<script type='text/javascript' src='{% static 'tom_education/common.js' %}'></script>
+<script type='text/javascript' src='{% static 'tom_education/autovarprocess_detail.js' %}'></script>
 
 {% endblock %}

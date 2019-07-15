@@ -1,4 +1,3 @@
-const POLL_INTERVAL = 1000;  // in milliseconds
 const AJAX_ACTIONS = {
     'create_timelapse': true,
     'analyse': true
@@ -8,10 +7,6 @@ var $FORM = $('#dataproduct-action-form');
 // Timestamp from the first API response: use this to determine whether a
 // process completed before our first request, in which case we do not show it
 var first_api_response_time = null;
-
-function getDisplayStatus(st) {
-    return st[0].toUpperCase() + st.substr(1);
-}
 
 /*
  * Start periodically polling the API to get info on processes for the given
@@ -36,9 +31,9 @@ function startStatusPolling(target_pk) {
                 showProcesses(process_statuses.processes);
             }
         }, 'json').fail(function() {
-            showError('Failed to retrieve process statuses')
+            showError('Failed to retrieve process statuses');
         });
-    }, POLL_INTERVAL);
+    }, AJAX_POLL_INTERVAL);
 }
 
 /*
@@ -60,11 +55,10 @@ function showProcesses(obj) {
             continue;
         }
         no_processes = false;
-        var created = new Date(process.created * 1000);
         var $row = $('<tr>');
         $row.append('<td>' + process.identifier + '</td>');
-        $row.append('<td>' + created.toLocaleString() + '</td>');
-        var status_text = '<b>' + getDisplayStatus(process.status) + '</b>';
+        $row.append('<td>' + getDateString(process.created) + '</td>');
+        var status_text = '<b>' + capitaliseFirst(process.status) + '</b>';
         if (process.view_url) {
             status_text += ` (<a href="${process.view_url}" title="View process details">View</a>)`;
         }
@@ -88,14 +82,6 @@ function showProcesses(obj) {
         $table.show();
         $empty_message.hide();
     }
-}
-
-/*
- * Display an error message after a failed AJAX request
- */
-function showError(msg) {
-    // TODO: show the error in the UI
-    throw msg;
 }
 
 /*

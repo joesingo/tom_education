@@ -304,3 +304,34 @@ class AutovarProcessDetailView(DetailView):
         if self.object.target:
             context['target_url'] = reverse('tom_targets:detail', kwargs={'pk': self.object.target.pk})
         return context
+
+
+class AutovarProcessApi(DetailView):
+    """
+    Return information about an AutovarProcess in a JSON response
+    """
+    model = AutovarProcess
+
+    def get_object(self, **kwargs):
+        pk = self.kwargs.get(self.pk_url_kwarg)
+        return self.get_queryset().get(pk=pk)
+
+    def get(self, request, *args, **kwargs):
+        try:
+            process = self.get_object()
+        except AutovarProcess.DoesNotExist:
+            return JsonResponse({'ok': False, 'error': 'Autovar process not found'}, status=404)
+
+        response_dict = {
+            'ok': True,
+            'identifier': process.identifier,
+            'created': process.created.timestamp(),
+            'status': process.status,
+            'logs': process.logs or ''
+        }
+        if process.status == ASYNC_STATUS_FAILED:
+            response_dict['failure_message'] = process.failure_message or None
+        if process.terminal_timestamp:
+            response_dict['terminal_timestamp'] = process.terminal_timestamp.timestamp()
+
+        return JsonResponse(response_dict)

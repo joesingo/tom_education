@@ -891,3 +891,65 @@ class AutovarTestCase(TestCase):
         url2 = reverse('tom_education:autovar_detail', kwargs={'pk': proc_without_target.pk})
         response2 = self.client.get(url2)
         self.assertNotIn('target_url', response2.context)
+
+    @patch('django.utils.timezone.now')
+    @patch('tom_education.models.async_process.datetime')
+    def test_api(self, async_mock, django_mock):
+        async_mock.now.return_value = datetime(
+            year=1970, month=1, day=1, hour=0, minute=6, second=0, microsecond=0
+        )
+        django_mock.return_value = datetime(
+            year=1970, month=1, day=1, hour=0, minute=5, second=0, microsecond=0
+        )
+
+        proc = AutovarProcess.objects.create(
+            target=self.target,
+            identifier='someprocess',
+            status='somestatus'
+        )
+        proc.input_files.add(*self.prods)
+        proc.save()
+
+        url = reverse('tom_education:autovar_api', kwargs={'pk': proc.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {
+            'ok': True,
+            'identifier': 'someprocess',
+            'created': 300,
+            'status': 'somestatus',
+            'logs': ''
+        })
+
+        proc.run()
+        response2 = self.client.get(url)
+        self.assertEqual(response2.status_code, 200)
+        self.assertEqual(response2.json(), {
+            'ok': True,
+            'identifier': 'someprocess',
+            'created': 300,
+            'status': ASYNC_STATUS_CREATED,
+            'terminal_timestamp': 360,
+            'logs': proc.logs
+        })
+
+        # Failure message should be included if process failed
+        proc.status = ASYNC_STATUS_FAILED
+        proc.failure_message = 'something went wrong'
+        proc.save()
+        response3 = self.client.get(url)
+        self.assertEqual(response3.status_code, 200)
+        self.assertEqual(response3.json(), {
+            'ok': True,
+            'identifier': 'someprocess',
+            'created': 300,
+            'status': ASYNC_STATUS_FAILED,
+            'terminal_timestamp': 360,
+            'failure_message': 'something went wrong',
+            'logs': proc.logs
+        })
+
+        # Bad PK should give 404
+        response4 = self.client.get(reverse('tom_education:autovar_api', kwargs={'pk': 100000}))
+        self.assertEqual(response4.status_code, 404)
+        self.assertEqual(response4.json(), {'ok': False, 'error': 'Autovar process not found'})

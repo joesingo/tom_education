@@ -6,3 +6,7 @@ register = template.Library()
 def dataproduct_checkbox(product):
     is_reduced = 'e91.fits.fz' not in product.data.name
     return {'product': product, 'reduced': is_reduced}
+
+@register.simple_tag
+def loading_message():
+    return 'Loading...'
