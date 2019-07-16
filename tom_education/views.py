@@ -137,6 +137,12 @@ class ActionableTargetDetailView(FormMixin, TargetDetailView):
         context = super().get_context_data(*args, **kwargs)
         context['dataproducts_form'] = self.get_form()
         context['pipeline_names'] = sorted(PipelineProcess.get_available().keys())
+        context['pipeline_flags'] = {}
+        for name in context['pipeline_names']:
+            pipeline_cls = PipelineProcess.get_subclass(name)
+            if pipeline_cls.flags:
+                context['pipeline_flags'][name] = pipeline_cls.flags
+
         return context
 
     def post(self, _request, *args, **kwargs):
@@ -170,12 +176,9 @@ class ActionableTargetDetailView(FormMixin, TargetDetailView):
             name = form.data['pipeline_name']
         except KeyError:
             return HttpResponseBadRequest('No pipeline_name given')
-
         try:
             pipeline_cls = PipelineProcess.get_subclass(name)
-            if PipelineProcess not in getattr(pipeline_cls, '__bases__', []):
-                raise ImportError
-        except (KeyError, ImportError):
+        except KeyError:
             return HttpResponseBadRequest("Invalid pipeline name '{}'".format(name))
 
         # Get pipeline-specific flags. Initially set all to False; those
