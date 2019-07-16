@@ -1,15 +1,15 @@
 from datetime import datetime
 import json
 
-from django.core.exceptions import PermissionDenied
 from django.contrib import messages
+from django.core.exceptions import PermissionDenied
 from django.db.utils import IntegrityError
 from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseRedirect
+from django.shortcuts import redirect, reverse
 from django.utils.http import urlencode
 from django.views.generic import ListView, FormView
-from django.views.generic.edit import FormMixin
 from django.views.generic.detail import DetailView
-from django.shortcuts import redirect, reverse
+from django.views.generic.edit import FormMixin
 from tom_dataproducts.models import DataProduct
 from tom_observations.views import ObservationCreateView
 from tom_targets.models import Target
@@ -21,7 +21,7 @@ from tom_education.models import (
     TimelapseDataProduct, ASYNC_STATUS_PENDING, ASYNC_STATUS_CREATED,
     ASYNC_STATUS_FAILED, ASYNC_TERMINAL_STATES
 )
-from tom_education.tasks import analyse_products, make_timelapse
+from tom_education.tasks import run_pipeline, make_timelapse
 
 
 class TemplatedObservationCreateView(ObservationCreateView):
@@ -136,6 +136,7 @@ class ActionableTargetDetailView(FormMixin, TargetDetailView):
         self.object = self.get_object()
         context = super().get_context_data(*args, **kwargs)
         context['dataproducts_form'] = self.get_form()
+        context['pipeline_names'] = sorted(PipelineProcess.get_available().keys())
         return context
 
     def post(self, _request, *args, **kwargs):
@@ -164,20 +165,32 @@ class ActionableTargetDetailView(FormMixin, TargetDetailView):
         make_timelapse.send(tl_prod.pk)
         return JsonResponse({'ok': True})
 
-    def handle_analyse(self, products, form):
+    def handle_pipeline(self, products, form):
+        try:
+            name = form.data['pipeline_name']
+        except KeyError:
+            return HttpResponseBadRequest('No pipeline_name given')
+
+        try:
+            pipeline_cls = PipelineProcess.get_subclass(name)
+            if PipelineProcess not in getattr(pipeline_cls, '__bases__', []):
+                raise ImportError
+        except (KeyError, ImportError):
+            return HttpResponseBadRequest("Invalid pipeline name '{}'".format(name))
+
         target = self.get_object()
 
         now = datetime.now()
         date_str = now.strftime('%Y-%m-%d-%H%M%S')
-        identifier = 'analysis_{}_{}'.format(target.identifier, date_str)
-        pipeline_cls = AutovarProcess  # TODO: construct possible cls's dynamically and let user choose
+        code = pipeline_cls.short_name
+        identifier = f'{code}_{target.identifier}_{date_str}'
         process = pipeline_cls.objects.create(
             identifier=identifier,
             target=target
         )
         process.input_files.add(*products)
         process.save()
-        analyse_products.send(process.pk, AutovarProcess.__name__)
+        run_pipeline.send(process.pk, name)
         return JsonResponse({'ok': True})
 
     def handle_view_gallery(self, products, form):

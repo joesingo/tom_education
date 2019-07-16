@@ -31,7 +31,7 @@ from tom_education.models import (
     PipelineProcess, DateFieldNotFoundError, ASYNC_STATUS_CREATED,
     ASYNC_STATUS_PENDING, ASYNC_STATUS_FAILED
 )
-from tom_education.tasks import make_timelapse
+from tom_education.tasks import make_timelapse, run_pipeline
 
 
 class FakeTemplateFacilityForm(FakeFacilityForm):
@@ -737,6 +737,8 @@ class AsyncStatusApiTestCase(TestCase):
 
 
 class FakePipeline(PipelineProcess):
+    short_name = 'fakepip'
+
     class Meta:
         proxy = True
 
@@ -754,13 +756,19 @@ class BasePipelineTestCase(TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        target_identifier = 'mytarget_{}'.format(datetime.now().timestamp())
+        target_identifier = 't{}'.format(datetime.now().timestamp())
         cls.target = Target.objects.create(identifier=target_identifier, name='my target')
         cls.prods = [DataProduct.objects.create(product_id=f'test_{i}', target=cls.target)
                      for i in range(4)]
         for prod in cls.prods:
             fn = f'{prod.product_id}_file'
             prod.data.save(fn, File(BytesIO()))
+
+    def setUp(self):
+        super().setUp()
+        self.user = User.objects.create_user(username='test', email='test@example.com')
+        self.client.force_login(self.user)
+        assign_perm('tom_targets.view_target', self.user, self.target)
 
 class PipelineTestCase(BasePipelineTestCase):
     def test_no_target(self):
@@ -896,6 +904,51 @@ class PipelineTestCase(BasePipelineTestCase):
         response4 = self.client.get(reverse('tom_education:pipeline_api', kwargs={'pk': 100000}))
         self.assertEqual(response4.status_code, 404)
         self.assertEqual(response4.json(), {'ok': False, 'error': 'Pipeline process not found'})
+
+    def test_form(self):
+        """In the target detail view"""
+        url = reverse('tom_education:target_detail', kwargs={'pk': self.target.pk})
+        test_settings = {
+            'pip1': 'some-invalid-path',
+            'pip2': 'tom_education.tests.FakePipeline',
+            # non-existent pipelines
+            'madeup': 'tom_education.MadeUpPipeline',       # bad class
+            'madeup2': 'fakepackege.hello.MadeUpPipeline',  # bad module
+            # path refers to something other than a PipelineProcess sub-class
+            'invalid': 'datetime.datetime',
+        }
+        with self.settings(TOM_EDUCATION_PIPELINES=test_settings):
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 200)
+            self.assertIn('pipeline_names', response.context)
+            self.assertEqual(response.context['pipeline_names'], [
+                'invalid', 'madeup', 'madeup2', 'pip1', 'pip2'
+            ])
+
+            expect_400_data = [
+                # missing pipeline name
+                {'action': 'pipeline'},
+                # invalid pipeline name
+                {'action': 'pipeline', 'pipeline_name': 'blah'},
+                # Bad settings
+                {'action': 'pipeline', 'pipeline_name': 'madeup2'},
+                {'action': 'pipeline', 'pipeline_name': 'invalid'},
+            ]
+            for data in expect_400_data:
+                resp = self.client.post(url, dict(data, test_0='on'))
+                self.assertEqual(resp.status_code, 400, data)
+
+            # Give valid pipeline name and check expected methods are called
+            response2 = self.client.post(url, {
+                'action': 'pipeline', 'pipeline_name': 'pip2', 'test_0': 'on'}
+            )
+            self.assertEqual(response2.status_code, 200)
+            # Check process was made
+            proc = PipelineProcess.objects.filter(identifier__startswith='fakepip').first()
+            self.assertTrue(proc is not None)
+            # Check outputs
+            self.assertTrue(proc.group is not None)
+            self.assertEqual(proc.group.dataproduct_set.count(),  2)
 
 
 class AutovarProcessTestCase(BasePipelineTestCase):

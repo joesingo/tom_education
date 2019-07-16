@@ -4,7 +4,8 @@ from django.conf import settings
 
 import tom_education.models as education_models
 from tom_education.models import (
-    AsyncError, TimelapseDataProduct, TimelapseProcess, ASYNC_STATUS_FAILED
+    AsyncError, TimelapseDataProduct, TimelapseProcess, ASYNC_STATUS_FAILED,
+    PipelineProcess
 )
 
 def task(func, **kwargs):
@@ -12,7 +13,7 @@ def task(func, **kwargs):
     Decorator that wraps dramatiq.actor, but does not import dramatiq if
     django_dramatiq is not in use
     """
-    if 'django_dramatiq' in settings.INSTALLED_APPS:
+    if 'test' not in sys.argv and 'django_dramatiq' in settings.INSTALLED_APPS:
         import dramatiq
         return dramatiq.actor(func, **kwargs)
 
@@ -37,16 +38,16 @@ def make_timelapse(tl_prod_pk):
     run_process(process)
 
 @task
-def analyse_products(process_pk, cls_name):
+def run_pipeline(process_pk, cls_name):
     try:
-        cls = getattr(education_models, cls_name)
-    except AttributeError:
-        print('warning: model \'{}\' not found'.format(cls_name), file=sys.stderr)
+        pipeline_cls = PipelineProcess.get_subclass(cls_name)
+    except ImportError:
+        print('warning: pipeline \'{}\' not found'.format(cls_name), file=sys.stderr)
         return
     try:
-        process = cls.objects.get(pk=process_pk)
-    except cls.DoesNotExist:
-        print('warning: could not find {} with PK {}'.format(cls.__name__, process_pk),
+        process = pipeline_cls.objects.get(pk=process_pk)
+    except pipeline_cls.DoesNotExist:
+        print('warning: could not find {} with PK {}'.format(pipeline_cls.__name__, process_pk),
               file=sys.stderr)
         return
     run_process(process)

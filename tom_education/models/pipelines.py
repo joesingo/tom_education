@@ -2,14 +2,18 @@ from contextlib import contextmanager
 import tempfile
 from pathlib import Path
 
+from django.conf import settings
 from django.core.files.base import ContentFile
 from django.db import models
+from django.utils.module_loading import import_string
 from tom_dataproducts.models import DataProduct, DataProductGroup
 
 from tom_education.models.async_process import AsyncError, AsyncProcess, ASYNC_STATUS_CREATED
 
 
 class PipelineProcess(AsyncProcess):
+    short_name = 'pipeline'
+
     input_files = models.ManyToManyField(DataProduct, related_name='pipeline')
     group = models.ForeignKey(DataProductGroup, null=True, blank=True, on_delete=models.SET_NULL)
     logs = models.TextField(null=True, blank=True)
@@ -18,7 +22,7 @@ class PipelineProcess(AsyncProcess):
         if self.target is None:
             raise AsyncError('Process must have an associated target')
         if not self.input_files.exists():
-            raise AsyncError('No input files to analyse')
+            raise AsyncError('No input files to process')
 
         with tempfile.TemporaryDirectory() as tmpdir_name:
             tmpdir = Path(tmpdir_name)
@@ -57,3 +61,18 @@ class PipelineProcess(AsyncProcess):
             self.logs = ''
         self.logs += msg + end
         self.save()
+
+    @classmethod
+    def get_available(cls):
+        """
+        Return the pipelines dict from settings.py
+        """
+        default = {'autovar': 'tom_education.models.AutovarProcess'}
+        return getattr(settings, 'TOM_EDUCATION_PIPELINES', default)
+
+    @classmethod
+    def get_subclass(cls, name):
+        """
+        Return the sub-class corresponding to the name given
+        """
+        return import_string(cls.get_available()[name])

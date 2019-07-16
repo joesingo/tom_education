@@ -24,6 +24,7 @@ class AutovarLogBuffer(StringIO):
 
 
 class AutovarProcess(PipelineProcess):
+    short_name = 'autovar'
     # Directories to find output files in after autovar has been run
     output_dirs = ('outputcats', 'outputplots')
 

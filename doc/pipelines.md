@@ -22,7 +22,7 @@ referencing them from `settings.py`, e.g:
 
 ```python
 ...
-TOM_EDUCATION_PIPLINES = {
+TOM_EDUCATION_PIPELINES = {
     # name: pipeline class. The name will be shown in the UI
     'My pipeline': 'my_project.pipelines.MyPipeline'
 }
@@ -36,6 +36,9 @@ be defined.
 from tom_education.models import PipelineProcess
 
 class MyPipeline(PipelineProcess):
+    # Label used as a prefix for names of generated data products
+    short_name = 'mypip'
+
     # Make this a proxy model: we do not want this to be a concrete model
     # (which would use a separate DB table and require migrations)
     class Meta:
