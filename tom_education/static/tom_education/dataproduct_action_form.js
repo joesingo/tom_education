@@ -133,4 +133,21 @@ $FORM.find('input[type=submit]').click(function() {
     $(this).attr('clicked', 'true');
 });
 
+/*
+ * Populate the pipeline fieldset with pipeline-specific flags when dropdown is
+ * changed
+ */
+$PIPELINE_SELECT.change(function() {
+    // Disable all checkboxes to avoid clashes if different pipelines use the
+    // same flag names
+    $FORM.find('fieldset input').attr('disabled', true);
+    $FORM.find('fieldset').hide();
+    var pipeline_name = $(this).val();
+    $f = $FORM.find(`fieldset#${pipeline_name}-flags`);
+    if ($f.length > 0) {
+        $f.find('input').attr('disabled', false);
+        $f.show();
+    }
+});
+
 startStatusPolling($FORM.data('target'));

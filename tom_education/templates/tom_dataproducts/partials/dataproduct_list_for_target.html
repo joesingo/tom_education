@@ -24,35 +24,51 @@
 <form method="POST" action="" id="dataproduct-action-form" data-target="{{ target.pk }}">
   <input type="hidden" name="action" value="" />
   {% csrf_token %}
-  <p>
+  <div>
     <!-- Actions -->
     {% buttons %}
         {% if pipeline_names %}
-            <label for="pipeline-select">Pipeline process</label>
-            <select id="pipeline-select" class="form-control" style="display: inline; width: 10em;">
-                <option value="">----</option>
-                {% for name in pipeline_names %}
-                    <option value="{{ name }}">{{ name }}</option>
-                {% endfor %}
-            </select>
-            <input type="submit" name="pipeline" class="btn btn-primary"
-                   value="Run pipeline" />
-            <br />
-            <br />
+            <p>
+                <label for="pipeline-select">Pipeline process</label>
+                <select id="pipeline-select" class="form-control" style="display: inline; width: 10em;">
+                    <option value="">----</option>
+                    {% for name in pipeline_names %}
+                        <option value="{{ name }}">{{ name }}</option>
+                    {% endfor %}
+                </select>
+                <input type="submit" name="pipeline" class="btn btn-primary"
+                       value="Run pipeline" />
+            </p>
+
+            {% for name, flags in pipeline_flags.items %}
+                <fieldset class="form-group" style="display: none;" id="{{ name }}-flags">
+                    {% for flag, checked in flags.items %}
+                        <div class="form-check">
+                            <input name="pipeline_flag_{{ flag }}" type="checkbox" value=""
+                                   id="pipeline-flag-{{ flag }}" class="form-check-input"
+                                   {% if checked %}checked{% endif %}/>
+                            <label class="form-check-label" for="pipeline-flag-{{ flag }}">
+                                {{ flag }}
+                            </label>
+                        </div>
+                    {% endfor %}
+                </fieldset>
+            {% endfor %}
         {% endif %}
 
-        <input type="submit" name="create_timelapse" class="btn btn-primary"
-               value="Create timelapse" />
-        <input type="submit" name="view_gallery" class="btn btn-primary"
-               value="View gallery" />
+        <p>
+            <input type="submit" name="create_timelapse" class="btn btn-primary"
+                   value="Create timelapse" />
+            <input type="submit" name="view_gallery" class="btn btn-primary"
+                   value="View gallery" />
 
-        <input type="hidden" name="pipeline_name" value="" />
-        <br />
-        <br />
-        {% include "tom_education/dataproduct_selection_buttons.html" %}
+            <input type="hidden" name="pipeline_name" value="" />
+        </p>
+
+        <p>{% include "tom_education/dataproduct_selection_buttons.html" %}</p>
     {% endbuttons %}
+  </div>
 
-  </p>
   <table class="table table-striped">
     <thead><tr><th></th><th></th><th></th><th>Filename</th><th>Tag</th><th>Delete</th></tr></thead>
     <tbody>
