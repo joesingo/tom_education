@@ -41,6 +41,9 @@ class ExamplePipelineProcess(PipelineProcess):
     # would use a separate DB table and require migrations)
     class Meta:
         proxy = True
+        # app label is required if this class is defined outside of an app
+        # listed in INSTALLED_APPS
+        app_label = 'myapp'
 
     def do_pipeline(self, tmpdir):
         """
