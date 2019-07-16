@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+import json
 import tempfile
 from pathlib import Path
 
@@ -13,10 +14,12 @@ from tom_education.models.async_process import AsyncError, AsyncProcess, ASYNC_S
 
 class PipelineProcess(AsyncProcess):
     short_name = 'pipeline'
+    flags = None
 
     input_files = models.ManyToManyField(DataProduct, related_name='pipeline')
     group = models.ForeignKey(DataProductGroup, null=True, blank=True, on_delete=models.SET_NULL)
     logs = models.TextField(null=True, blank=True)
+    flags_json = models.TextField(null=True, blank=True)
 
     def run(self):
         if self.target is None:
@@ -28,7 +31,8 @@ class PipelineProcess(AsyncProcess):
             tmpdir = Path(tmpdir_name)
 
             # Do the actual work
-            output_paths = self.do_pipeline(tmpdir)
+            flags = json.loads(self.flags_json) if self.flags_json else {}
+            output_paths = self.do_pipeline(tmpdir, **flags)
 
             # Save outputs
             self.group = DataProductGroup.objects.create(name=f'{self.identifier}_outputs')

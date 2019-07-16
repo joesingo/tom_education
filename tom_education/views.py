@@ -178,6 +178,18 @@ class ActionableTargetDetailView(FormMixin, TargetDetailView):
         except (KeyError, ImportError):
             return HttpResponseBadRequest("Invalid pipeline name '{}'".format(name))
 
+        # Get pipeline-specific flags. Initially set all to False; those
+        # present in form data will be set to True
+        flags = {f: False for f in pipeline_cls.flags} if pipeline_cls.flags else {}
+        for key, val in form.data.items():
+            prefix = 'pipeline_flag_'
+            if not key.startswith(prefix):
+                continue
+            flag = key[len(prefix):]
+            if flag not in flags:
+                continue
+            flags[flag] = True
+
         target = self.get_object()
 
         now = datetime.now()
@@ -186,7 +198,8 @@ class ActionableTargetDetailView(FormMixin, TargetDetailView):
         identifier = f'{code}_{target.identifier}_{date_str}'
         process = pipeline_cls.objects.create(
             identifier=identifier,
-            target=target
+            target=target,
+            flags_json=json.dumps(flags),
         )
         process.input_files.add(*products)
         process.save()

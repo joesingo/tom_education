@@ -132,3 +132,26 @@ def do_pipeline(self, tmpdir):
 ```
 
 Log output is also shown in the UI on the page for a process.
+
+## Flags
+
+Pipelines may be parametrised by a number of boolean parameters ('*flags*'),
+whose values are selected by the user when the process is scheduled and passed
+as keyword arguments to the `do_pipeline()` method. To define flags, set the
+`flags` attribute on the pipeline class:
+
+```python
+class FlagDemo(PipelineProcess):
+    # `flags` is a dictionary that maps flag names to their default values
+    flags = {
+        'some_flag': True,
+        'another_flag': False
+    }
+    ...
+
+    def do_pipeline(self, tmpdir, **flags):
+        some_flag = flags.pop('some_flag')
+        another_flag = flags.pop('another_flag')
+        ...
+    ...
+```

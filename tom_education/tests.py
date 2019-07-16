@@ -739,10 +739,13 @@ class AsyncStatusApiTestCase(TestCase):
 class FakePipeline(PipelineProcess):
     short_name = 'fakepip'
 
+    flags = {'myflag': False, 'default_true': True, 'default_false': False}
+
     class Meta:
         proxy = True
 
-    def do_pipeline(self, tmpdir):
+    def do_pipeline(self, tmpdir, **kwargs):
+        self.log_kwargs(kwargs)
         self.log("doing the thing")
         file1 = tmpdir / 'file1.csv'
         file2 = tmpdir / 'file2.png'
@@ -751,6 +754,10 @@ class FakePipeline(PipelineProcess):
         self.log("and another thing")
         return (file1, file2)
 
+    # Create method to pass kwargs to, so we can mock it and check the correct
+    # kwargs were passed
+    def log_kwargs(self, kwargs):
+        pass
 
 class BasePipelineTestCase(TestCase):
     @classmethod
@@ -905,7 +912,9 @@ class PipelineTestCase(BasePipelineTestCase):
         self.assertEqual(response4.status_code, 404)
         self.assertEqual(response4.json(), {'ok': False, 'error': 'Pipeline process not found'})
 
-    def test_form(self):
+    @patch('tom_education.tests.FakePipeline.log_kwargs')
+    @patch('tom_education.views.datetime')
+    def test_form(self, dt_mock, kwargs_mock):
         """In the target detail view"""
         url = reverse('tom_education:target_detail', kwargs={'pk': self.target.pk})
         test_settings = {
@@ -939,9 +948,10 @@ class PipelineTestCase(BasePipelineTestCase):
                 self.assertEqual(resp.status_code, 400, data)
 
             # Give valid pipeline name and check expected methods are called
+            dt_mock.now.return_value = datetime(year=1980, month=1, day=1)
             response2 = self.client.post(url, {
-                'action': 'pipeline', 'pipeline_name': 'pip2', 'test_0': 'on'}
-            )
+                'action': 'pipeline', 'pipeline_name': 'pip2', 'test_0': 'on'
+            })
             self.assertEqual(response2.status_code, 200)
             # Check process was made
             proc = PipelineProcess.objects.filter(identifier__startswith='fakepip').first()
@@ -949,6 +959,22 @@ class PipelineTestCase(BasePipelineTestCase):
             # Check outputs
             self.assertTrue(proc.group is not None)
             self.assertEqual(proc.group.dataproduct_set.count(),  2)
+            # No flags given: all should be false
+            kwargs_mock.assert_called_with({f: False for f in FakePipeline.flags})
+
+            # POST with flags and check they were passed do the pipeline
+            # correctly
+            dt_mock.now.return_value = datetime(year=1981, month=1, day=1)
+            response3 = self.client.post(url, {
+                'action': 'pipeline', 'pipeline_name': 'pip2', 'test_0': 'on',
+                'pipeline_flag_myflag': 'on',
+                'pipeline_flag_default_false': 'on',
+                'pipeline_flag_bogus': 'on',  # unexpected flag name should not cause problems
+            })
+            expected_flags = {'myflag': True, 'default_true': False, 'default_false': True}
+            proc = PipelineProcess.objects.filter(identifier__contains='1981').get()
+            self.assertEqual(proc.flags_json, json.dumps(expected_flags))
+            kwargs_mock.assert_called_with(expected_flags)
 
 
 class AutovarProcessTestCase(BasePipelineTestCase):
