@@ -33,14 +33,12 @@ The following class serves as a minimal example showing the methods that must
 be defined.
 
 ```python
-from tom_education.models import PipelineProcess
-
-class MyPipeline(PipelineProcess):
+class ExamplePipelineProcess(PipelineProcess):
     # Label used as a prefix for names of generated data products
-    short_name = 'mypip'
+    short_name = 'example'
 
-    # Make this a proxy model: we do not want this to be a concrete model
-    # (which would use a separate DB table and require migrations)
+    # Make this a proxy: we do not want this to be a concrete model (which
+    # would use a separate DB table and require migrations)
     class Meta:
         proxy = True
 
@@ -51,17 +49,16 @@ class MyPipeline(PipelineProcess):
         `tmpdir` is `pathlib.Path` object for a temporary directory which can
         be used to write outputs and other temporary files.
 
-        The `Target` object is available as `self.target`
-        The input files are available as `self.input_files`. This is a Django
-        `ManyRelatedManager` object of `DataProduct` objects: use
-        `self.input_files.all()` to get the inputs as a list.
-
         This method will return a sequence of Path objects for the output files
         that should be saved as new `DataProduct` objects in TOM.
         """
+        # The `Target` object is available as `self.target`
         ra = self.target.ra
         dec = self.target.dec
 
+        # The input files are available as `self.input_files`. This is a Django
+        # `ManyRelatedManager` object of `DataProduct` objects: use
+        # `self.input_files.all()` to get the inputs as a list.
         for product in self.input_files.all():
             path = product.data.path
             # Do something with file...
