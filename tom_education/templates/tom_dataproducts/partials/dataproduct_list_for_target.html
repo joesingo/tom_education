@@ -27,16 +27,28 @@
   <p>
     <!-- Actions -->
     {% buttons %}
+        {% if pipeline_names %}
+            <label for="pipeline-select">Pipeline process</label>
+            <select id="pipeline-select" class="form-control" style="display: inline; width: 10em;">
+                <option value="">----</option>
+                {% for name in pipeline_names %}
+                    <option value="{{ name }}">{{ name }}</option>
+                {% endfor %}
+            </select>
+            <input type="submit" name="pipeline" class="btn btn-primary"
+                   value="Run pipeline" />
+            <br />
+            <br />
+        {% endif %}
+
         <input type="submit" name="create_timelapse" class="btn btn-primary"
                value="Create timelapse" />
         <input type="submit" name="view_gallery" class="btn btn-primary"
                value="View gallery" />
-        <input type="submit" name="pipeline" class="btn btn-primary"
-               value="Run pipeline" />
 
-        <!-- TODO: make selectable -->
-        <input type="hidden" name="pipeline_name" value="autovar" />
-
+        <input type="hidden" name="pipeline_name" value="" />
+        <br />
+        <br />
         {% include "tom_education/dataproduct_selection_buttons.html" %}
     {% endbuttons %}
 

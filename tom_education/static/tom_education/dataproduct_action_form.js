@@ -3,6 +3,8 @@ const AJAX_ACTIONS = {
     'pipeline': true
 };
 var $FORM = $('#dataproduct-action-form');
+var $PIPELINE_SELECT = $('#pipeline-select');
+var $PIPELINE_HIDDEN = $('input[name=pipeline_name]');
 
 // Timestamp from the first API response: use this to determine whether a
 // process completed before our first request, in which case we do not show it
@@ -93,8 +95,19 @@ $FORM.submit(function(event) {
     if (!(action in AJAX_ACTIONS)) {
         return;
     }
-
     event.preventDefault();
+
+    if (action === 'pipeline') {
+        var pipeline_name = $PIPELINE_SELECT.val();
+        if (!pipeline_name) {
+            $PIPELINE_SELECT.addClass('is-invalid');
+            console.warn('No pipeline name selected');
+            return;
+        }
+        $PIPELINE_SELECT.removeClass('is-invalid');
+        $PIPELINE_HIDDEN.val(pipeline_name);
+    }
+
     $.post($FORM.attr('action'), $FORM.serialize() , function(data) {
         if (data.ok) {
             deselectAllProducts();
