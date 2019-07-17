@@ -9,6 +9,7 @@ import sys
 from django.conf import settings
 from django.core.management import call_command
 from django.core.management.base import BaseCommand
+from django.core.management.utils import get_random_secret_key
 from django.template.loader import get_template
 from tom_dataproducts.models import DataProductGroup
 
@@ -33,6 +34,7 @@ class Command(BaseCommand):
         context = {
             'project_name': self.project_name,
             'timelapse_group_name': self.timelapse_group_name,
+            'secret_key': generate_secret_key(),
         }
         rendered_settings = get_template('tom_education/settings.py.tmpl').render(context)
         rendered_urls = get_template('tom_education/urls.py.tmpl').render({})
