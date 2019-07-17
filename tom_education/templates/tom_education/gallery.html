@@ -33,11 +33,6 @@
         <div class="container">
             <div class="row">
             {% for product in products %}
-                {% if forloop.counter0|divisibleby:4 %}
-                    </div> {# Close row #}
-                    <div class="row">
-                {% endif %}
-
                 <div class="col-sm thumbnail">
                     <label>
                         {% dataproduct_checkbox product %}
@@ -46,7 +41,6 @@
                         <img width="200" src="{{ product.get_preview }}" />
                     </label>
                 </div>
-
             {% endfor %}
             </div>
         </div>
