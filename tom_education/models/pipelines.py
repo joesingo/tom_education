@@ -2,6 +2,7 @@ from contextlib import contextmanager
 import json
 import tempfile
 from pathlib import Path
+import re
 
 from django.conf import settings
 from django.core.files.base import ContentFile
@@ -10,6 +11,12 @@ from django.utils.module_loading import import_string
 from tom_dataproducts.models import DataProduct, DataProductGroup
 
 from tom_education.models.async_process import AsyncError, AsyncProcess, ASYNC_STATUS_CREATED
+
+
+class InvalidPipelineError(Exception):
+    """
+    Failed to import a PipelineProcess subclass from settings
+    """
 
 
 class PipelineProcess(AsyncProcess):
@@ -79,4 +86,38 @@ class PipelineProcess(AsyncProcess):
         """
         Return the sub-class corresponding to the name given
         """
-        return import_string(cls.get_available()[name])
+        try:
+            pipeline_cls = import_string(cls.get_available()[name])
+        except ImportError as ex:
+            raise InvalidPipelineError(ex)
+
+        # Check imported object is a class, and has PipelineProcess as a parent
+        err = '{} does not look like a PipelineProcess sub-class'.format(pipeline_cls)
+        try:
+            if not issubclass(pipeline_cls, PipelineProcess):
+                raise InvalidPipelineError(err)
+        except TypeError:  # TypeError raised by issubclass() if first arg is not a class
+            raise InvalidPipelineError(err)
+
+        try:
+            cls.validate_flags(pipeline_cls.flags)
+        except AssertionError:
+            raise InvalidPipelineError("Invalid 'flags' attribute in {}".format(pipeline_cls))
+        return pipeline_cls
+
+    @classmethod
+    def validate_flags(cls, flags):
+        """
+        Validate a class's `flags` attribute. Raises AssertionError if
+        invalid
+        """
+        if flags is None:
+            return
+        assert isinstance(flags, dict)
+        # `name` will be used as an ID in the HTML, so must not contain
+        # whitespace
+        for name, info in flags.items():
+            assert re.match(r'[^\s]+$', name)
+            assert isinstance(info, dict)
+            assert 'default' in info
+            assert 'long_name' in info

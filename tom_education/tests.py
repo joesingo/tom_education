@@ -28,8 +28,8 @@ from tom_education.forms import DataProductActionForm, GalleryForm
 from tom_education.models import (
     AutovarLogBuffer, AutovarProcess, AsyncError, AsyncProcess,
     ObservationTemplate, TimelapseDataProduct, TimelapseProcess,
-    PipelineProcess, DateFieldNotFoundError, ASYNC_STATUS_CREATED,
-    ASYNC_STATUS_PENDING, ASYNC_STATUS_FAILED
+    PipelineProcess, InvalidPipelineError, DateFieldNotFoundError,
+    ASYNC_STATUS_CREATED, ASYNC_STATUS_PENDING, ASYNC_STATUS_FAILED
 )
 from tom_education.tasks import make_timelapse, run_pipeline
 
@@ -769,6 +769,12 @@ class FakePipelineWithFlags(FakePipeline):
         return super().do_pipeline(tmpdir)
 
 
+class FakePipelineBadFlags(FakePipeline):
+    flags = 4
+    class Meta:
+        proxy = True
+
+
 class BasePipelineTestCase(TestCase):
     @classmethod
     def setUpClass(cls):
@@ -979,6 +985,43 @@ class PipelineTestCase(BasePipelineTestCase):
             proc = PipelineProcess.objects.filter(identifier__contains='1981').get()
             self.assertEqual(proc.flags_json, json.dumps(expected_flags))
             flags_mock.assert_called_with(expected_flags)
+
+    def test_invalid_pipelines(self):
+        invalid_settings = [
+            # Bad import paths
+            {'mypip': 'blah'},
+            {'mypip': 'fakepackage.blah'},
+            {'mypip': 'tom_education.blah'},
+            # Path to an object which is not a PipelineProcess subclass
+            {'mypip': 'datetime.datetime'},
+            # Class with invalid flags
+            {'mypip': 'tom_education.tests.FakePipelineBadFlags'},
+        ]
+
+        url = reverse('tom_education:target_detail', kwargs={'pk': self.target.pk})
+        for invalid in invalid_settings:
+            with self.settings(TOM_EDUCATION_PIPELINES=invalid):
+                with self.assertRaises(InvalidPipelineError):
+                    self.client.get(url)
+
+    def test_validate_flags(self):
+        invalid = [
+            # Wrong type
+            4, 'hello', [],
+            # Missing default
+            {'name': {'long_name': 'hello'}},
+            # Missing long name
+            {'name': {'default': False}},
+            # Whitespace in name
+            {'name with spaces': {'default': False, 'long_name': 'hello'}},
+        ]
+        for flags in invalid:
+            with self.assertRaises(InvalidPipelineError):
+                PipelineProcess.validate_flags(flags)
+
+        # Should not raise an exception
+        PipelineProcess.validate_flags(FakePipeline.flags)
+        PipelineProcess.validate_flags(FakePipelineWithFlags.flags)
 
 
 class AutovarProcessTestCase(BasePipelineTestCase):
