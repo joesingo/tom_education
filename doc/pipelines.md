@@ -142,10 +142,11 @@ as keyword arguments to the `do_pipeline()` method. To define flags, set the
 
 ```python
 class FlagDemo(PipelineProcess):
-    # `flags` is a dictionary that maps flag names to their default values
+    # `flags` is a dictionary that maps flag names to their default values and
+    # long descriptions
     flags = {
-        'some_flag': True,
-        'another_flag': False
+        'some_flag': {'default': True, 'long_name': 'Long name to be displayed in the UI'},
+        'another_flag': {'default': False, 'long_name': 'Another flag'}
     }
     ...
 

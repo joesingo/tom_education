@@ -40,15 +40,15 @@
                        value="Run pipeline" />
             </p>
 
-            {% for name, flags in pipeline_flags.items %}
-                <fieldset class="form-group" style="display: none;" id="{{ name }}-flags">
-                    {% for flag, checked in flags.items %}
+            {% for pipeline_name, flags in pipeline_flags.items %}
+                <fieldset class="form-group" style="display: none;" id="{{ pipeline_name }}-flags">
+                    {% for flag_name, info in flags.items %}
                         <div class="form-check">
-                            <input name="pipeline_flag_{{ flag }}" type="checkbox" value=""
-                                   id="pipeline-flag-{{ flag }}" class="form-check-input"
-                                   {% if checked %}checked{% endif %}/>
-                            <label class="form-check-label" for="pipeline-flag-{{ flag }}">
-                                {{ flag }}
+                            <input name="pipeline_flag_{{ flag_name }}" type="checkbox" value=""
+                                   id="pipeline-flag-{{ flag_name }}" class="form-check-input"
+                                   {% if info.default %}checked{% endif %}/>
+                            <label class="form-check-label" for="pipeline-flag-{{ flag_name }}">
+                                {{ info.long_name }}
                             </label>
                         </div>
                     {% endfor %}

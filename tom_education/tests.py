@@ -753,7 +753,11 @@ class FakePipeline(PipelineProcess):
 
 
 class FakePipelineWithFlags(FakePipeline):
-    flags = {'myflag': False, 'default_true': True, 'default_false': False}
+    flags = {
+        'myflag': {'default': False, 'long_name': 'myflag'},
+        'default_true': {'default': True, 'long_name': 'Default True'},
+        'default_false': {'default': False, 'long_name': 'Default False'},
+    }
     class Meta:
         proxy = True
     # Create method to pass flags to, so we can mock it and check the correct
