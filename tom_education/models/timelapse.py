@@ -1,11 +1,14 @@
 from datetime import datetime
 from io import BytesIO
+import os.path
+import tempfile
 
 from astropy.io import fits
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.files import File
 from django.db import models
+from fits2image.conversions import fits_to_jpg
 import imageio
 
 from tom_dataproducts.models import DataProduct, IMAGE_FILE
@@ -93,9 +96,18 @@ class TimelapseDataProduct(DataProduct):
             # call)
             writer_kwargs['format'] = TIMELAPSE_MP4
 
-        with imageio.get_writer(outfile, **writer_kwargs) as writer:
-            for product in self.sorted_frames():
-                writer.append_data(imageio.imread(product.data.path, format='fits'))
+        tl_settings = self.get_settings()
+        image_size = tl_settings.get('size', 500)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with imageio.get_writer(outfile, **writer_kwargs) as writer:
+                for i, product in enumerate(self.sorted_frames()):
+                    # Note: imageio supports loading FITS files, but does not
+                    # choose brightness levels intelligently. Use fits_to_jpg
+                    # instead to go FITS -> JPG -> GIF
+                    tmpfile = os.path.join(tmpdir, 'frame_{}.jpg'.format(i))
+                    fits_to_jpg(product.data.path, tmpfile, width=image_size, height=image_size)
+                    writer.append_data(imageio.imread(tmpfile))
 
     def sorted_frames(self):
         """
@@ -123,7 +135,7 @@ class TimelapseDataProduct(DataProduct):
         format/FPS settings are taken from settings.py and the current date and
         time is used to construct the product ID
         """
-        tl_settings = getattr(settings, 'TOM_EDUCATION_TIMELAPSE_SETTINGS', {})
+        tl_settings = cls.get_settings()
         fmt = tl_settings.get('format')
         fps = tl_settings.get('fps')
 
@@ -142,6 +154,9 @@ class TimelapseDataProduct(DataProduct):
         tl.save()
         return tl
 
+    @classmethod
+    def get_settings(cls):
+        return getattr(settings, 'TOM_EDUCATION_TIMELAPSE_SETTINGS', {})
 
 class TimelapseProcess(AsyncProcess):
     """

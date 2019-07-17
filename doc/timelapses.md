@@ -9,9 +9,13 @@ Options can be configured with `TOM_EDUCATION_TIMELAPSE_SETTINGS` in
 ```python
 TOM_EDUCATION_TIMELAPSE_SETTINGS = {
     'format': 'webm',
-    'fps': 15
+    'fps': 15,
+    'size': 500
 }
 ```
+
+Here 'size' is the maximum width/height to use. The aspect ratio of the input
+files is maintained.
 
 The creation of timelapses can optionally be performed asynchronously in
 separate worker processes in a queue using [Dramatiq](https://dramatiq.io/) via
