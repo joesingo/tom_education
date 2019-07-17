@@ -17,9 +17,9 @@ from tom_targets.views import TargetDetailView
 
 from tom_education.forms import make_templated_form, DataProductActionForm, GalleryForm
 from tom_education.models import (
-    AsyncProcess, AutovarProcess, PipelineProcess, ObservationTemplate,
-    TimelapseDataProduct, ASYNC_STATUS_PENDING, ASYNC_STATUS_CREATED,
-    ASYNC_STATUS_FAILED, ASYNC_TERMINAL_STATES
+    AsyncProcess, PipelineProcess, ObservationTemplate, TimelapseDataProduct,
+    ASYNC_STATUS_PENDING, ASYNC_STATUS_CREATED, ASYNC_STATUS_FAILED,
+    ASYNC_TERMINAL_STATES
 )
 from tom_education.tasks import run_pipeline, make_timelapse
 

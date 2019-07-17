@@ -78,7 +78,7 @@ class PipelineProcess(AsyncProcess):
         """
         Return the pipelines dict from settings.py
         """
-        default = {'autovar': 'tom_education.models.AutovarProcess'}
+        default = {}
         return getattr(settings, 'TOM_EDUCATION_PIPELINES', default)
 
     @classmethod
