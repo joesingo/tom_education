@@ -1,4 +1,4 @@
-const URL = '/pipeline/logs/' + PIPELINE_PROCESS_PK;
+const URL = '/pipeline/logs/' + PIPELINE_PROCESS_PK + '/';
 var $CREATED      = $('#process-created');
 var $STATUS       = $('#process-status');
 var $FINISHED     = $('#process-finished');
@@ -9,11 +9,6 @@ var $LOGS         = $LOGS_WRAPPER.find('code');
 
 window.setInterval(function() {
     $.get(URL, function(data) {
-        if (!data.ok) {
-            showError('An error occurred: ' + data.error);
-            return;
-        }
-
         $CREATED.text(getDateString(data.created));
 
         var status_text = capitaliseFirst(data.status);

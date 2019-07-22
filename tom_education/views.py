@@ -4,22 +4,28 @@ import json
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
 from django.db.utils import IntegrityError
-from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseRedirect
+from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseRedirect, Http404
 from django.shortcuts import redirect, reverse
 from django.utils.http import urlencode
-from django.views.generic import ListView, FormView
+from django.views.generic import FormView
 from django.views.generic.detail import DetailView
 from django.views.generic.edit import FormMixin
 from tom_dataproducts.models import DataProduct
 from tom_observations.views import ObservationCreateView
 from tom_targets.models import Target
 from tom_targets.views import TargetDetailView
+from rest_framework.generics import ListAPIView, RetrieveAPIView
+from rest_framework import serializers
+from rest_framework.response import Response
 
 from tom_education.forms import make_templated_form, DataProductActionForm, GalleryForm
 from tom_education.models import (
     AsyncProcess, PipelineProcess, ObservationTemplate, TimelapseDataProduct,
     ASYNC_STATUS_PENDING, ASYNC_STATUS_CREATED, ASYNC_STATUS_FAILED,
     ASYNC_TERMINAL_STATES
+)
+from tom_education.serializers import (
+    AsyncProcessSerializer, PipelineProcessSerializer, TimestampField
 )
 from tom_education.tasks import run_pipeline, make_timelapse
 
@@ -283,48 +289,25 @@ class GalleryView(FormView):
         return HttpResponseRedirect(url)
 
 
-class AsyncStatusApi(ListView):
+class AsyncStatusApi(ListAPIView):
     """
     View that finds all AsyncProcess objects associated with a specified Target
     and returns the listing in a JSON response
     """
+    serializer_class = AsyncProcessSerializer
+
     def get_queryset(self):
-        target = Target.objects.get(pk=self.kwargs['target'])
-        return AsyncProcess.objects.filter(target=target)
-
-    def get(self, request, *args, **kwargs):
-        statuses = (ASYNC_STATUS_PENDING, ASYNC_STATUS_CREATED, ASYNC_STATUS_FAILED)
-        response_dict = {
-            'ok': True,
-            'timestamp': datetime.now().timestamp(),
-            'processes': []
-        }
-
         try:
-            qs = self.get_queryset()
+            target = Target.objects.get(pk=self.kwargs['target'])
         except Target.DoesNotExist:
-            return JsonResponse({'ok': False, 'error': 'Target not found'}, status=404)
+            raise Http404
+        return AsyncProcess.objects.filter(target=target).order_by('-created')
 
-        for process in qs:
-            proc_dict = {
-                'identifier': process.identifier,
-                'created': process.created.timestamp(),
-                'status': process.status
-            }
-            if process.status == ASYNC_STATUS_FAILED:
-                proc_dict['failure_message'] = process.failure_message or None
-            if process.terminal_timestamp:
-                proc_dict['terminal_timestamp'] = process.terminal_timestamp.timestamp()
-            # Special case for PipelineProcess objects: provide link to detail view
-            if hasattr(process, 'pipelineprocess'):
-                view_url = reverse('tom_education:pipeline_detail', kwargs={'pk': process.pk})
-                proc_dict['view_url'] = view_url
-
-            response_dict['processes'].append(proc_dict)
-
-        # Sort processes by creation time (most recent first)
-        response_dict['processes'].sort(key=lambda d: d['created'], reverse=True)
-        return JsonResponse(response_dict)
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        timestamp = TimestampField().to_representation(datetime.now())
+        return Response({'timestamp': timestamp, 'processes': serializer.data})
 
 
 class PipelineProcessDetailView(DetailView):
@@ -337,36 +320,9 @@ class PipelineProcessDetailView(DetailView):
         return context
 
 
-class PipelineProcessApi(DetailView):
+class PipelineProcessApi(RetrieveAPIView):
     """
     Return information about a PipelineProcess in a JSON response
     """
-    model = PipelineProcess
-
-    def get_object(self, **kwargs):
-        pk = self.kwargs.get(self.pk_url_kwarg)
-        return self.get_queryset().get(pk=pk)
-
-    def get(self, request, *args, **kwargs):
-        try:
-            process = self.get_object()
-        except PipelineProcess.DoesNotExist:
-            return JsonResponse({'ok': False, 'error': 'Pipeline process not found'}, status=404)
-
-        response_dict = {
-            'ok': True,
-            'identifier': process.identifier,
-            'created': process.created.timestamp(),
-            'status': process.status,
-            'logs': process.logs or ''
-        }
-        if process.status == ASYNC_STATUS_FAILED:
-            response_dict['failure_message'] = process.failure_message or None
-        if process.terminal_timestamp:
-            response_dict['terminal_timestamp'] = process.terminal_timestamp.timestamp()
-        if process.group:
-            kwargs = {'pk': process.group.pk}
-            response_dict['group_name'] = process.group.name
-            response_dict['group_url'] = reverse('tom_dataproducts:group-detail', kwargs=kwargs)
-
-        return JsonResponse(response_dict)
+    queryset = PipelineProcess.objects.all()
+    serializer_class = PipelineProcessSerializer

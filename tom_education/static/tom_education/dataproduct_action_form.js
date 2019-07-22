@@ -19,12 +19,8 @@ function startStatusPolling(target_pk) {
 
     window.setInterval(function() {
         // TODO: don't hardcode URL
-        var url = '/async/status/' + target_pk;
+        var url = '/async/status/' + target_pk + '/';
         $.get(url, function(data) {
-            if (!data.ok) {
-                showError('An error occurred: ' + data.error);
-                return;
-            }
             if (first_api_response_time === null) {
                 first_api_response_time = data.timestamp;
             }
@@ -109,14 +105,9 @@ $FORM.submit(function(event) {
     }
 
     $.post($FORM.attr('action'), $FORM.serialize() , function(data) {
-        if (data.ok) {
-            deselectAllProducts();
-            // Scroll to async section
-            window.location.href = '#async-section';
-        }
-        else {
-            showError('Error submitting form');
-        }
+        deselectAllProducts();
+        // Scroll to async section
+        window.location.href = '#async-section';
     },
     'json').fail(function() {
         showError('Failed to submit form');

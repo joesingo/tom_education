@@ -682,6 +682,9 @@ class AsyncStatusApiTestCase(TestCase):
         proc_dict = {
             'identifier': 'hello',
             'created': create_timestamp1,
+            'terminal_timestamp': None,
+            'view_url': None,
+            'failure_message': None,
         }
         failed_proc_dict = {
             'identifier': 'ohno',
@@ -695,7 +698,6 @@ class AsyncStatusApiTestCase(TestCase):
         response1 = self.client.get(url)
         self.assertEqual(response1.status_code, 200)
         self.assertEqual(response1.json(), {
-            'ok': True,
             'timestamp': current_timestamp,
             'processes': [failed_proc_dict, dict(proc_dict, status='pending')]
         })
@@ -705,7 +707,6 @@ class AsyncStatusApiTestCase(TestCase):
         response2 = self.client.get(url)
         self.assertEqual(response2.status_code, 200)
         self.assertEqual(response2.json(), {
-            'ok': True,
             'timestamp': current_timestamp,
             'processes': [
                 failed_proc_dict,
@@ -718,7 +719,6 @@ class AsyncStatusApiTestCase(TestCase):
         response3 = self.client.get(url)
         self.assertEqual(response3.status_code, 200)
         self.assertEqual(response3.json(), {
-            'ok': True,
             'timestamp': current_timestamp,
             'processes': [
                 failed_proc_dict,
@@ -730,7 +730,7 @@ class AsyncStatusApiTestCase(TestCase):
         # Bad target PK should give 404
         response4 = self.client.get(reverse('tom_education:async_process_status_api', kwargs={'target': 100000}))
         self.assertEqual(response4.status_code, 404)
-        self.assertEqual(response4.json(), {'ok': False, 'error': 'Target not found'})
+        self.assertEqual(response4.json(), {'detail': 'Not found.'})
 
 
 class FakePipeline(PipelineProcess):
@@ -879,11 +879,14 @@ class PipelineTestCase(TestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {
-            'ok': True,
             'identifier': 'someprocess',
             'created': 300,
             'status': 'somestatus',
-            'logs': ''
+            'logs': '',
+            'terminal_timestamp': None,
+            'failure_message': None,
+            'group_name': None,
+            'group_url': None,
         })
 
         proc.run()
@@ -891,11 +894,11 @@ class PipelineTestCase(TestCase):
         response2 = self.client.get(url)
         self.assertEqual(response2.status_code, 200)
         self.assertEqual(response2.json(), {
-            'ok': True,
             'identifier': 'someprocess',
             'created': 300,
             'status': ASYNC_STATUS_CREATED,
             'terminal_timestamp': 360,
+            'failure_message': None,
             'group_url': group_url,
             'group_name': 'someprocess_outputs',
             'logs': proc.logs
@@ -908,7 +911,6 @@ class PipelineTestCase(TestCase):
         response3 = self.client.get(url)
         self.assertEqual(response3.status_code, 200)
         self.assertEqual(response3.json(), {
-            'ok': True,
             'identifier': 'someprocess',
             'created': 300,
             'status': ASYNC_STATUS_FAILED,
@@ -922,7 +924,7 @@ class PipelineTestCase(TestCase):
         # Bad PK should give 404
         response4 = self.client.get(reverse('tom_education:pipeline_api', kwargs={'pk': 100000}))
         self.assertEqual(response4.status_code, 404)
-        self.assertEqual(response4.json(), {'ok': False, 'error': 'Pipeline process not found'})
+        self.assertEqual(response4.json(), {'detail': 'Not found.'})
 
     @patch('tom_education.tests.FakePipelineWithFlags.log_flags')
     @patch('tom_education.views.datetime')

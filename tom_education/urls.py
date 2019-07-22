@@ -16,6 +16,6 @@ urlpatterns = [
     path('targets/<int:pk>/', ActionableTargetDetailView.as_view(), name='target_detail'),
     path('async/status/<target>/', AsyncStatusApi.as_view(), name='async_process_status_api'),
     path('pipeline/<pk>', PipelineProcessDetailView.as_view(), name='pipeline_detail'),
-    path('pipeline/logs/<pk>', PipelineProcessApi.as_view(), name='pipeline_api'),
+    path('pipeline/logs/<pk>/', PipelineProcessApi.as_view(), name='pipeline_api'),
     path('gallery/', GalleryView.as_view(), name='gallery'),
 ]
