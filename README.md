@@ -25,6 +25,11 @@ timelapses) are performed asynchronously in separate worker processes using
 
 ## Installation
 
+**Note:** At the time of writing, `tom_education` uses features of `tomtoolkit`
+that are not yet released. After installation, uninstall `tomtoolkit` and
+install the `development` branch [from
+GitHub](https://github.com/TOMToolkit/tom_base).
+
 1. Set up a TOM following the [getting started guide](https://tomtoolkit.github.io/docs/getting_started).
 
 2. Clone and install this package with `pip`:
@@ -63,9 +68,11 @@ python manage.py rundramatiq
 
 Note that `rundramatiq` must be restarted for code changes to take effect.
 
-7. Optional: run tests to check everything is okay (**Note**: Redis and the
-   Dramatiq workers do not have to be running to run the tests).
+7. Optional: install test dependencies and run tests to check everything is
+okay (**Note**: Redis and the Dramatiq workers do not have to be running to run
+the tests).
 
 ```
+pip install tomtoolkit[test]
 python manage.py test tom_education
 ```

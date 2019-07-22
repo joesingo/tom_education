@@ -15,6 +15,7 @@ setup(
     author_email='joesingo@gmail.com',
     install_requires=[
         'tomtoolkit',
+        'numpy',
         'imageio-ffmpeg==0.3.0',
         'imageio==2.5.0',
         'django-dramatiq==0.7.1',

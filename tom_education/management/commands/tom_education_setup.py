@@ -34,7 +34,7 @@ class Command(BaseCommand):
         context = {
             'project_name': self.project_name,
             'timelapse_group_name': self.timelapse_group_name,
-            'secret_key': generate_secret_key(),
+            'secret_key': get_random_secret_key(),
         }
         rendered_settings = get_template('tom_education/settings.py.tmpl').render(context)
         rendered_urls = get_template('tom_education/urls.py.tmpl').render({})
