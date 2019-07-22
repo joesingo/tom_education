@@ -1,6 +1,7 @@
 import sys
 
 from django.conf import settings
+import dramatiq
 
 import tom_education.models as education_models
 from tom_education.models import (
@@ -10,13 +11,11 @@ from tom_education.models import (
 
 def task(func, **kwargs):
     """
-    Decorator that wraps dramatiq.actor, but does not import dramatiq if
-    django_dramatiq is not in use
+    Decorator that wraps dramatiq.actor, but runs tasks synchronously during
+    tests
     """
-    if 'test' not in sys.argv and 'django_dramatiq' in settings.INSTALLED_APPS:
-        import dramatiq
+    if 'test' not in sys.argv:
         return dramatiq.actor(func, **kwargs)
-
     func.send = func
     return func
 

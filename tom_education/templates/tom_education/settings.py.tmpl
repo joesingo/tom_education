@@ -40,7 +40,7 @@ INSTALLED_APPS = [
     'crispy_forms',
     'django_filters',
     'django_gravatar',
-    # 'django_dramatiq',  # Uncomment this line to use Dramatiq for creating timelapses
+    'django_dramatiq',
     'tom_education',
     'tom_targets',
     'tom_alerts',
@@ -233,15 +233,10 @@ TOM_EDUCATION_TIMELAPSE_SETTINGS = {
 
 TOM_EDUCATION_TIMELAPSE_GROUP_NAME = '{{ timelapse_group_name }}'
 
-# Example Dramatiq configuration using Redis on localhost:6379, except for
-# during tests.
-#
-# Note that Dramatiq is not used unless 'django_dramatiq' is present in
-# INSTALLED_APPS
-testing = ('test' in sys.argv)
+# Example Dramatiq configuration using Redis on localhost:6379
 DRAMATIQ_BROKER = {
-    'BROKER': 'dramatiq.brokers.redis.RedisBroker' if not testing else 'dramatiq.brokers.stub.StubBroker',
-    'OPTIONS': {'url': 'redis://localhost:6379'} if not testing else {},
+    'BROKER': 'dramatiq.brokers.redis.RedisBroker',
+    'OPTIONS': {'url': 'redis://localhost:6379'},
     'MIDDLEWARE': [
         'dramatiq.middleware.AgeLimit',
         'dramatiq.middleware.TimeLimit',

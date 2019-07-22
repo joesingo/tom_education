@@ -17,6 +17,12 @@ Plugin for the TOM Toolkit adding features intended for educational use.
 * [Data pipelines](doc/pipelines.md): Run a user-supplied data pipeline on a
   selection of files and save the outputs as data products in the TOM.
 
+Long-running tasks (such as running data pipelines and creating large
+timelapses) are performed asynchronously in separate worker processes using
+[Dramatiq](https://dramatiq.io/) via
+[django_dramatiq](https://github.com/Bogdanp/django_dramatiq) and
+[Redis](https://redis.io).
+
 ## Installation
 
 1. Set up a TOM following the [getting started guide](https://tomtoolkit.github.io/docs/getting_started).
@@ -44,7 +50,21 @@ INSTALLED_APPS = [
 python manage.py tom_education_setup
 ```
 
-5. Optional: run tests to check everything is okay
+5. Install [Redis](https://redis.io), and start `redis-server`. If not running
+  Redis on the same server as `tom_education`, or if using a non-default port,
+  change the Redis connection settings in `settings.py` under
+  `DRAMATIQ_BROKER`.
+
+6. Start the Dramatiq worker processes:
+
+```
+python manage.py rundramatiq
+```
+
+Note that `rundramatiq` must be restarted for code changes to take effect.
+
+7. Optional: run tests to check everything is okay (**Note**: Redis and the
+   Dramatiq workers do not have to be running to run the tests).
 
 ```
 python manage.py test tom_education
