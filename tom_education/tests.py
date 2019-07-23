@@ -1057,17 +1057,29 @@ class TargetDetailApiTestCase(TestCase):
             target=self.target,
             fmt=TIMELAPSE_GIF,
         )
-        tl_mp4 = TimelapseDataProduct.objects.create(
-            product_id='mp4_tl',
-            target=self.target,
-            fmt=TIMELAPSE_MP4,
-        )
         tl_webm = TimelapseDataProduct.objects.create(
             product_id='webm_tl',
             target=self.target,
             fmt=TIMELAPSE_WEBM,
         )
-        for dp in (tl_gif, tl_mp4, tl_webm):
+        # Make some timelapses with associated timelapse processes in a
+        # non-created state: should not be included in API response
+        tl_failed = TimelapseDataProduct.objects.create(product_id='tl_failed', target=self.target)
+        tl_pending = TimelapseDataProduct.objects.create(product_id='tl_pending', target=self.target)
+        TimelapseProcess.objects.create(
+            identifier='failed',
+            timelapse_product=tl_failed,
+            target=self.target,
+            status=ASYNC_STATUS_FAILED
+        )
+        TimelapseProcess.objects.create(
+            identifier='pending',
+            timelapse_product=tl_pending,
+            target=self.target,
+            status=ASYNC_STATUS_PENDING
+        )
+
+        for dp in (tl_gif, tl_webm, tl_failed, tl_pending):
             # Note: no need to save `data`, since this is done in
             # TimelapseDataProduct save() method
             self.urls[dp.product_id] = dp.data.url
@@ -1089,7 +1101,6 @@ class TargetDetailApiTestCase(TestCase):
             },
             'timelapses': [
                 {'name': 'gif_tl.gif', 'format': 'gif', 'url': self.urls['gif_tl']},
-                {'name': 'mp4_tl.mp4', 'format': 'mp4', 'url': self.urls['mp4_tl']},
                 {'name': 'webm_tl.webm', 'format': 'webm', 'url': self.urls['webm_tl']},
             ]
         })

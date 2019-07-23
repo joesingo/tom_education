@@ -31,6 +31,7 @@ from tom_education.serializers import (
     TargetDetailSerializer
 )
 from tom_education.tasks import run_pipeline, make_timelapse
+from tom_education.templatetags.dataproduct_extras import exclude_non_created_timelapses
 
 
 class TemplatedObservationCreateView(ObservationCreateView):
@@ -354,5 +355,6 @@ class TargetDetailApiView(RetrieveAPIView):
 
     def get_object(self):
         target = super().get_object()
-        timelapses = TimelapseDataProduct.objects.filter(target=target).order_by('fmt')
+        all_timelapses = TimelapseDataProduct.objects.filter(target=target).order_by('fmt')
+        timelapses = exclude_non_created_timelapses(all_timelapses)
         return TargetDetailApiInfo(target=target, timelapses=timelapses)
