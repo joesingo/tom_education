@@ -1,5 +1,7 @@
+from dataclasses import dataclass
 from datetime import datetime
 import json
+from typing import Iterable
 
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
@@ -25,7 +27,8 @@ from tom_education.models import (
     ASYNC_TERMINAL_STATES
 )
 from tom_education.serializers import (
-    AsyncProcessSerializer, PipelineProcessSerializer, TimestampField
+    AsyncProcessSerializer, PipelineProcessSerializer, TimestampField,
+    TargetDetailSerializer
 )
 from tom_education.tasks import run_pipeline, make_timelapse
 
@@ -326,3 +329,30 @@ class PipelineProcessApi(RetrieveAPIView):
     """
     queryset = PipelineProcess.objects.all()
     serializer_class = PipelineProcessSerializer
+
+
+@dataclass
+class TargetDetailApiInfo:
+    """
+    Wrapper object containing a target and its timelapses, for serialization
+    for the target detail API
+    """
+    target: Target
+    timelapses: Iterable[TimelapseDataProduct]
+
+
+class TargetDetailApiView(RetrieveAPIView):
+    """
+    Return information about a target and its timelapses, and return a JSON
+    response
+    """
+    serializer_class = TargetDetailSerializer
+    # Note: we specify a Target queryset to make use of rest_framework methods
+    # to retrieve Target model from the PK kwarg in URL, but it is NOT a Target
+    # object that will be serialized
+    queryset = Target.objects.all()
+
+    def get_object(self):
+        target = super().get_object()
+        timelapses = TimelapseDataProduct.objects.filter(target=target).order_by('fmt')
+        return TargetDetailApiInfo(target=target, timelapses=timelapses)

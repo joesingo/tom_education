@@ -25,8 +25,9 @@ from tom_education.forms import DataProductActionForm, GalleryForm
 from tom_education.models import (
     AsyncError, AsyncProcess, ObservationTemplate, TimelapseDataProduct,
     TimelapseProcess, PipelineProcess, InvalidPipelineError,
-    DateFieldNotFoundError, ASYNC_STATUS_CREATED, ASYNC_STATUS_PENDING,
-    ASYNC_STATUS_FAILED
+    DateFieldNotFoundError,
+    ASYNC_STATUS_CREATED, ASYNC_STATUS_PENDING, ASYNC_STATUS_FAILED,
+    TIMELAPSE_GIF, TIMELAPSE_MP4, TIMELAPSE_WEBM
 )
 from tom_education.tasks import make_timelapse
 
@@ -293,7 +294,7 @@ class TimelapseTestCase(TestCase):
         data.seek(0)
         self.assertEqual(data.read(4), b'\x1a\x45\xdf\xa3')
 
-    @override_settings(TOM_EDUCATION_TIMELAPSE_SETTINGS={'format': 'gif', 'fps': 16})
+    @override_settings(TOM_EDUCATION_TIMELAPSE_SETTINGS={'format': TIMELAPSE_GIF, 'fps': 16})
     @patch('tom_education.models.timelapse.datetime')
     def test_create_timelapse_form(self, dt_mock):
         """
@@ -342,7 +343,7 @@ class TimelapseTestCase(TestCase):
         self.assertEqual(tldp.product_id, expected_id)
         self.assertTrue(os.path.basename(tldp.data.name), expected_filename)
         self.assertEqual(set(tldp.frames.all()), {self.prods[0], self.prods[2], self.prods[3]})
-        self.assertEqual(tldp.fmt, 'gif')
+        self.assertEqual(tldp.fmt, TIMELAPSE_GIF)
         self.assertEqual(tldp.fps, 16)
 
     def test_empty_form(self):
@@ -397,7 +398,7 @@ class TimelapseTestCase(TestCase):
         # TODO: check the actual image data
 
     def test_create_mp4(self):
-        tldp = self.create_timelapse_dataproduct(self.prods, fmt='mp4')
+        tldp = self.create_timelapse_dataproduct(self.prods, fmt=TIMELAPSE_MP4)
         buf = BytesIO()
         tldp._write(buf)
         self.assert_mp4_data(buf)
@@ -407,7 +408,7 @@ class TimelapseTestCase(TestCase):
         self.assertEqual(len(frames), len(self.prods))
 
     def test_create_webm(self):
-        tldp = self.create_timelapse_dataproduct(self.prods, fmt='webm')
+        tldp = self.create_timelapse_dataproduct(self.prods, fmt=TIMELAPSE_WEBM)
         buf = BytesIO()
         tldp._write(buf)
         buf.seek(0)
@@ -473,7 +474,7 @@ class TimelapseTestCase(TestCase):
             self.assertTrue(isinstance(process2.failure_message, str))
             self.assertEqual(process2.failure_message, 'An unexpected error occurred')
 
-    @override_settings(TOM_EDUCATION_TIMELAPSE_SETTINGS={'format': 'gif', 'fps': 16},
+    @override_settings(TOM_EDUCATION_TIMELAPSE_SETTINGS={'format': TIMELAPSE_GIF, 'fps': 16},
                        TOM_EDUCATION_TIMELAPSE_GROUP_NAME='timelapsey')
     def test_management_command(self):
         pre_tldp_count = TimelapseDataProduct.objects.count()
@@ -1020,3 +1021,80 @@ class PipelineTestCase(TestCase):
         # Should not raise an exception
         PipelineProcess.validate_flags(FakePipeline.flags)
         PipelineProcess.validate_flags(FakePipelineWithFlags.flags)
+
+
+class TargetDetailApiTestCase(TestCase):
+    def setUp(self):
+        super().setUp()
+        now = datetime.now().timestamp()
+        self.target_identifier = f'target_{now}'
+        self.target = Target(
+            identifier=self.target_identifier,
+            name='my target',
+            name2='my target2',
+            name3='my target3',
+        )
+        self.target.save(extras={'extrafield': 'extravalue'})
+
+        # Make some non-timelapse data products for the target
+        data_products = [
+            # (product_id, filename)
+            ('fits1', 'somefile.fits'),
+            ('fits2', 'somefile.fits.fz'),
+            ('png', 'somefile.png'),
+            ('no extension', 'randomfile'),
+            ('not a real timelapse', 'timelapse.sh'),
+        ]
+        self.urls = {}  # Keep track of the URLs for file downloads
+        for product_id, filename in data_products:
+            dp = DataProduct.objects.create(product_id=product_id, target=self.target)
+            dp.data.save(filename, File(BytesIO()))
+            self.urls[product_id] = dp.data.url
+
+        # Create some timelapses
+        tl_gif = TimelapseDataProduct.objects.create(
+            product_id='gif_tl',
+            target=self.target,
+            fmt=TIMELAPSE_GIF,
+        )
+        tl_mp4 = TimelapseDataProduct.objects.create(
+            product_id='mp4_tl',
+            target=self.target,
+            fmt=TIMELAPSE_MP4,
+        )
+        tl_webm = TimelapseDataProduct.objects.create(
+            product_id='webm_tl',
+            target=self.target,
+            fmt=TIMELAPSE_WEBM,
+        )
+        for dp in (tl_gif, tl_mp4, tl_webm):
+            # Note: no need to save `data`, since this is done in
+            # TimelapseDataProduct save() method
+            self.urls[dp.product_id] = dp.data.url
+
+    @override_settings(EXTRA_FIELDS=[{'name': 'extrafield', 'type': 'string'}])
+    def test_api(self):
+        self.maxDiff = None
+
+        url = reverse('tom_education:target_api', kwargs={'pk': self.target.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {
+            'target': {
+                'identifier': self.target_identifier,
+                'name': 'my target',
+                'name2': 'my target2',
+                'name3': 'my target3',
+                'extra_fields': {'extrafield': 'extravalue'},
+            },
+            'timelapses': [
+                {'name': 'gif_tl.gif', 'format': 'gif', 'url': self.urls['gif_tl']},
+                {'name': 'mp4_tl.mp4', 'format': 'mp4', 'url': self.urls['mp4_tl']},
+                {'name': 'webm_tl.webm', 'format': 'webm', 'url': self.urls['webm_tl']},
+            ]
+        })
+
+        url_404 = reverse('tom_education:target_api', kwargs={'pk': 1000000})
+        response_404 = self.client.get(url_404)
+        self.assertEqual(response_404.status_code, 404)
+        self.assertEqual(response_404.json(), {'detail': 'Not found.'})

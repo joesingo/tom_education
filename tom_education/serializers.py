@@ -1,5 +1,8 @@
+import os.path
+
 from django.shortcuts import reverse
 from rest_framework import serializers
+from tom_targets.models import Target
 
 from tom_education.models import AsyncProcess, PipelineProcess
 
@@ -60,3 +63,40 @@ class PipelineProcessSerializer(AsyncProcessSerializer):
         Make sure logs is always a string
         """
         return obj.logs or ''
+
+
+class TargetSerializer(serializers.ModelSerializer):
+    """
+    Serialize a subset of the Target fields, plus any extra fields
+    """
+    class Meta:
+        model = Target
+        fields = ['identifier', 'name', 'name2', 'name3', 'extra_fields']
+
+
+class TimelapseSerializer(serializers.Serializer):
+    """
+    Serialize basic info for a timelapse, including the (relative) URL to the
+    actual timelapse file
+    """
+    name = serializers.SerializerMethodField()
+    format = serializers.SerializerMethodField()
+    url = serializers.SerializerMethodField()
+
+    def get_name(self, obj):
+        return os.path.basename(obj.data.name)
+
+    def get_format(self, obj):
+        return obj.fmt
+
+    def get_url(self, obj):
+        return obj.data.url
+
+
+class TargetDetailSerializer(serializers.Serializer):
+    """
+    Response for target detail API: includes information about the target and
+    its timelapses
+    """
+    target = TargetSerializer()
+    timelapses = serializers.ListSerializer(child=TimelapseSerializer())
