@@ -19,7 +19,7 @@ function startStatusPolling(target_pk) {
 
     window.setInterval(function() {
         // TODO: don't hardcode URL
-        var url = '/async/status/' + target_pk + '/';
+        var url = '/api/async/status/' + target_pk + '/';
         $.get(url, function(data) {
             if (first_api_response_time === null) {
                 first_api_response_time = data.timestamp;

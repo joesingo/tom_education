@@ -1,4 +1,4 @@
-const URL = '/pipeline/logs/' + PIPELINE_PROCESS_PK + '/';
+const URL = '/api/pipeline/logs/' + PIPELINE_PROCESS_PK + '/';
 var $CREATED      = $('#process-created');
 var $STATUS       = $('#process-status');
 var $FINISHED     = $('#process-finished');
