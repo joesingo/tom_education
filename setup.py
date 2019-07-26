@@ -24,6 +24,7 @@ setup(
         'watchdog==0.9.0',
         'watchdog-gevent==0.1.1',
         'djangorestframework==3.10.1',
+        'django-cors-headers',
     ],
     packages=find_packages(),
     include_package_data=True,
