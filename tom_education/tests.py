@@ -1099,9 +1099,10 @@ class TargetDetailApiTestCase(TestCase):
                 'name3': 'my target3',
                 'extra_fields': {'extrafield': 'extravalue'},
             },
+            # Should be sorted: most recent first
             'timelapses': [
-                {'name': 'gif_tl.gif', 'format': 'gif', 'url': self.urls['gif_tl']},
                 {'name': 'webm_tl.webm', 'format': 'webm', 'url': self.urls['webm_tl']},
+                {'name': 'gif_tl.gif', 'format': 'gif', 'url': self.urls['gif_tl']},
             ]
         })
 

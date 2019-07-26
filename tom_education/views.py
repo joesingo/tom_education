@@ -355,6 +355,6 @@ class TargetDetailApiView(RetrieveAPIView):
 
     def get_object(self):
         target = super().get_object()
-        all_timelapses = TimelapseDataProduct.objects.filter(target=target).order_by('fmt')
+        all_timelapses = TimelapseDataProduct.objects.filter(target=target).order_by('-created')
         timelapses = exclude_non_created_timelapses(all_timelapses)
         return TargetDetailApiInfo(target=target, timelapses=timelapses)
