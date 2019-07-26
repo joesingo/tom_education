@@ -82,6 +82,8 @@ class TimelapseSerializer(serializers.Serializer):
     name = serializers.SerializerMethodField()
     format = serializers.SerializerMethodField()
     url = serializers.SerializerMethodField()
+    created = serializers.SerializerMethodField()
+    frames = serializers.SerializerMethodField()
 
     def get_name(self, obj):
         return os.path.basename(obj.data.name)
@@ -91,6 +93,12 @@ class TimelapseSerializer(serializers.Serializer):
 
     def get_url(self, obj):
         return obj.data.url
+
+    def get_created(self, obj):
+        return TimestampField().to_representation(obj.created)
+
+    def get_frames(self, obj):
+        return obj.frames.count()
 
 
 class TargetDetailSerializer(serializers.Serializer):

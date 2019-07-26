@@ -1057,11 +1057,21 @@ class TargetDetailApiTestCase(TestCase):
             target=self.target,
             fmt=TIMELAPSE_GIF,
         )
+        self.gif_creation = tl_gif.created
         tl_webm = TimelapseDataProduct.objects.create(
             product_id='webm_tl',
             target=self.target,
             fmt=TIMELAPSE_WEBM,
         )
+        self.webm_creation = tl_webm.created
+        # Add 1 frame for WebM and 2 for GIF
+        dp1 = DataProduct.objects.create(product_id='dp1', target=self.target)
+        dp2 = DataProduct.objects.create(product_id='dp2', target=self.target)
+        tl_webm.frames.add(dp1)
+        tl_webm.save()
+        tl_gif.frames.add(dp1, dp2)
+        tl_gif.save()
+
         # Make some timelapses with associated timelapse processes in a
         # non-created state: should not be included in API response
         tl_failed = TimelapseDataProduct.objects.create(product_id='tl_failed', target=self.target)
@@ -1100,10 +1110,19 @@ class TargetDetailApiTestCase(TestCase):
                 'extra_fields': {'extrafield': 'extravalue'},
             },
             # Should be sorted: most recent first
-            'timelapses': [
-                {'name': 'webm_tl.webm', 'format': 'webm', 'url': self.urls['webm_tl']},
-                {'name': 'gif_tl.gif', 'format': 'gif', 'url': self.urls['gif_tl']},
-            ]
+            'timelapses': [{
+                'name': 'webm_tl.webm',
+                'format': 'webm',
+                'url': self.urls['webm_tl'],
+                'frames': 1,
+                'created': self.webm_creation.timestamp()
+            }, {
+                'name': 'gif_tl.gif',
+                'format': 'gif',
+                'url': self.urls['gif_tl'],
+                'frames': 2,
+                'created': self.gif_creation.timestamp()
+            }]
         })
 
         url_404 = reverse('tom_education:target_api', kwargs={'pk': 1000000})
