@@ -40,4 +40,23 @@ class ObservationTemplate(models.Model):
         fmt = '%Y-%m-%d-%H%M%S'
         return "{}-{}".format(self.name, now.strftime(fmt))
 
+    @staticmethod
+    def get_identifier_field(facility):
+        """
+        Return name of the field used to extract template name when creating a
+        template. This field is also used to store the identifier for
+        instantiated templates
+        """
+        if facility == 'LCO':
+            return 'group_id'
+        raise NotImplementedError
+
+    @staticmethod
+    def get_date_fields(facility):
+        """
+        Return a sequence of field names whose type is datetime
+        """
+        if facility == 'LCO':
+            return ['start', 'end']
+        return []
 

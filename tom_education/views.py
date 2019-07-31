@@ -40,20 +40,6 @@ class TemplatedObservationCreateView(ObservationCreateView):
     def get_form_class(self):
         return make_templated_form(super().get_form_class())
 
-    def get_identifier_field(self):
-        """
-        Return name of the field used to extract template name when creating a
-        template
-        """
-        if self.get_facility() == 'LCO':
-            return 'group_id'
-        raise NotImplementedError
-
-    def get_date_fields(self):
-        if self.get_facility() == 'LCO':
-            return ['start', 'end']
-        return []
-
     def serialize_fields(self, form):
         return json.dumps(form.cleaned_data)
 
@@ -81,37 +67,41 @@ class TemplatedObservationCreateView(ObservationCreateView):
     def get_initial(self):
         initial = super().get_initial()
 
+        facility = self.get_facility()
         template_id = self.request.GET.get('template_id')
         if template_id:
             template = ObservationTemplate.objects.filter(
                 target=self.get_target(),
-                facility=self.get_facility()
+                facility=facility
             ).get(pk=template_id)
 
             initial.update(json.loads(template.fields))
-            # Set identifier field to something unique based on the template name
-            initial[self.get_identifier_field()] = template.get_identifier()
+            # Set identifier field to something unique based on the template
+            id_field = ObservationTemplate.get_identifier_field(facility)
+            initial[id_field] = template.get_identifier()
 
             # Dates need to be converted to just YYYY-MM-DD to display in the
             # widget properly
-            for field in self.get_date_fields():
+            for field in ObservationTemplate.get_date_fields(facility):
                 dt = initial[field]
                 initial[field] = datetime.fromisoformat(dt).strftime('%Y-%m-%d')
 
         return initial
 
     def form_valid(self, form):
+        facility = self.get_facility()
         if self.get_form_class().new_template_action[0] in form.data:
             if not self.can_create_template():
                 raise PermissionDenied()
 
             # Create new template
-            name = form.cleaned_data.get(self.get_identifier_field())  # TODO: deal with None
+            # TODO: deal with None below
+            name = form.cleaned_data.get(ObservationTemplate.get_identifier_field(facility))
             try:
                 template = ObservationTemplate.objects.create(
                     name=name,
                     target=self.get_target(),
-                    facility=self.get_facility(),
+                    facility=facility,
                     fields=self.serialize_fields(form)
                 )
             except IntegrityError:

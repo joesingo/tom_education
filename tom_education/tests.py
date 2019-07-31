@@ -67,7 +67,7 @@ def write_fits_image_file(data, date=None):
 
 
 @override_settings(TOM_FACILITY_CLASSES=FAKE_FACILITIES)
-@patch('tom_education.views.TemplatedObservationCreateView.get_identifier_field', return_value='test_input')
+@patch('tom_education.models.ObservationTemplate.get_identifier_field', return_value='test_input')
 @patch('tom_education.views.TemplatedObservationCreateView.supported_facilities', ('TemplateFake',))
 class ObservationTemplateTestCase(TestCase):
     facility = 'TemplateFake'
