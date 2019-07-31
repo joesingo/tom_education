@@ -362,6 +362,8 @@ class TargetDetailApiView(RetrieveAPIView):
 
 
 class ObservationAlertApiCreateView(CreateAPIView):
+    throttle_scope = 'observe'
+
     serializer_class = ObservationAlertSerializer
 
     def perform_create(self, serializer):

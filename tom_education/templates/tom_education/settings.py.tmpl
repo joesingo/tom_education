@@ -235,6 +235,15 @@ TOM_EDUCATION_TIMELAPSE_SETTINGS = {
 
 TOM_EDUCATION_TIMELAPSE_GROUP_NAME = '{{ timelapse_group_name }}'
 
+REST_FRAMEWORK = {
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.ScopedRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'observe': '6/minute',
+    },
+}
+
 # Example Dramatiq configuration using Redis on localhost:6379
 DRAMATIQ_BROKER = {
     'BROKER': 'dramatiq.brokers.redis.RedisBroker',
