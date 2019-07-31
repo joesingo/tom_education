@@ -13,7 +13,7 @@ logging.getLogger("imageio").setLevel(logging.CRITICAL)
 
 
 class Command(BaseCommand):
-    RAW_FILE_EXTENSION = 'e91.fits.fz'
+    RAW_FILE_EXTENSION = 'e00.fits.fz'
 
     help = 'Create a timelapse from a series of data products for a target'
 
