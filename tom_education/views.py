@@ -12,23 +12,34 @@ from django.utils.http import urlencode
 from django.views.generic import FormView
 from django.views.generic.detail import DetailView
 from django.views.generic.edit import FormMixin
-from tom_dataproducts.models import DataProduct
+from tom_dataproducts.models import DataProduct, ObservationRecord
+from tom_observations.facility import get_service_class
 from tom_observations.views import ObservationCreateView
 from tom_targets.models import Target
 from tom_targets.views import TargetDetailView
-from rest_framework.generics import ListAPIView, RetrieveAPIView
+from rest_framework.exceptions import NotFound
+from rest_framework.generics import CreateAPIView, ListAPIView, RetrieveAPIView
 from rest_framework import serializers
 from rest_framework.response import Response
 
 from tom_education.forms import make_templated_form, DataProductActionForm, GalleryForm
 from tom_education.models import (
-    AsyncProcess, PipelineProcess, ObservationTemplate, TimelapseDataProduct,
-    ASYNC_STATUS_PENDING, ASYNC_STATUS_CREATED, ASYNC_STATUS_FAILED,
-    ASYNC_TERMINAL_STATES
+    ASYNC_STATUS_CREATED,
+    ASYNC_STATUS_FAILED,
+    ASYNC_STATUS_PENDING,
+    ASYNC_TERMINAL_STATES,
+    AsyncProcess,
+    ObservationAlert,
+    ObservationTemplate,
+    PipelineProcess,
+    TimelapseDataProduct,
 )
 from tom_education.serializers import (
-    AsyncProcessSerializer, PipelineProcessSerializer, TimestampField,
-    TargetDetailSerializer
+    AsyncProcessSerializer,
+    ObservationAlertSerializer,
+    PipelineProcessSerializer,
+    TargetDetailSerializer,
+    TimestampField,
 )
 from tom_education.tasks import run_pipeline, make_timelapse
 from tom_education.templatetags.dataproduct_extras import exclude_non_created_timelapses
@@ -43,9 +54,9 @@ class TemplatedObservationCreateView(ObservationCreateView):
     def serialize_fields(self, form):
         return json.dumps(form.cleaned_data)
 
-    def instantiate_template_url(self):
+    def form_url(self):
         """
-        Return the URL which renders the form with a template instantiated
+        Return the URL for this form view for the current facility and target
         """
         base = reverse("tom_education:create_obs", kwargs={'facility': self.get_facility()})
         return base + '?' + urlencode({'target_id': self.get_target_id()})
@@ -60,7 +71,7 @@ class TemplatedObservationCreateView(ObservationCreateView):
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
-        kwargs['instantiate_template_url'] = self.instantiate_template_url()
+        kwargs['form_url'] = self.form_url()
         kwargs['show_create'] = self.can_create_template()
         return kwargs
 
@@ -108,7 +119,7 @@ class TemplatedObservationCreateView(ObservationCreateView):
                 form.add_error(None, 'Template name "{}" already in use'.format(name))
                 return self.form_invalid(form)
 
-            path = template.get_create_url(self.instantiate_template_url())
+            path = template.get_create_url(self.form_url())
             return redirect(path)
 
         return super().form_valid(form)
@@ -348,3 +359,54 @@ class TargetDetailApiView(RetrieveAPIView):
         all_timelapses = TimelapseDataProduct.objects.filter(target=target).order_by('-created')
         timelapses = exclude_non_created_timelapses(all_timelapses)
         return TargetDetailApiInfo(target=target, timelapses=timelapses)
+
+
+class ObservationAlertApiCreateView(CreateAPIView):
+    serializer_class = ObservationAlertSerializer
+
+    def perform_create(self, serializer):
+        data = serializer.validated_data
+        try:
+            target = Target.objects.get(pk=data['target'])
+            facility_class = get_service_class(data['facility'])
+            template = ObservationTemplate.objects.get(
+                target=target,
+                name=data['template_name'],
+                facility=data['facility']
+            )
+        except Target.DoesNotExist:
+            raise NotFound(detail='Target not found.')
+        except ImportError:
+            raise NotFound(detail='Facility not found.')
+        except ObservationTemplate.DoesNotExist:
+            err = "Template '{}' not found for target '{}' and facility '{}'".format(
+                data['template_name'], target.identifier, data['facility']
+            )
+            raise NotFound(detail=err)
+
+        # Construct form for creating an observation
+        form_data = {
+            'target_id': target.pk,
+            'facility': facility_class.name
+        }
+        form_data.update(json.loads(template.fields))
+        id_field = ObservationTemplate.get_identifier_field(facility_class.name)
+        form_data[id_field] = template.get_identifier()
+        form_data.update(data.get('overrides', {}))
+        form = facility_class.form(form_data)
+        if not form.is_valid():
+            raise serializers.ValidationError(form.errors)
+
+        # Submit observation using facility class
+        observation_ids = facility_class().submit_observation(form.observation_payload())
+        assert len(observation_ids) == 1, (
+            'Submittion created multiple observation IDs: {}'.format(observation_ids)
+        )
+        # Create Observation record and alert
+        ob = ObservationRecord.objects.create(
+            target=target,
+            facility=facility_class.name,
+            parameters=form.serialize_parameters(),
+            observation_id=observation_ids[0]
+        )
+        alert = ObservationAlert.objects.create(email=data['email'], observation=ob)

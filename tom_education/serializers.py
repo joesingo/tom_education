@@ -108,3 +108,11 @@ class TargetDetailSerializer(serializers.Serializer):
     """
     target = TargetSerializer()
     timelapses = serializers.ListSerializer(child=TimelapseSerializer())
+
+
+class ObservationAlertSerializer(serializers.Serializer):
+    target = serializers.IntegerField(min_value=1)
+    template_name = serializers.CharField()
+    facility = serializers.CharField()
+    overrides = serializers.DictField(required=False)
+    email = serializers.EmailField()

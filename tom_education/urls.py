@@ -4,6 +4,7 @@ from tom_education.views import (
     ActionableTargetDetailView,
     AsyncStatusApi,
     GalleryView,
+    ObservationAlertApiCreateView,
     PipelineProcessApi,
     PipelineProcessDetailView,
     TemplatedObservationCreateView,
@@ -22,4 +23,5 @@ urlpatterns = [
     path('api/async/status/<target>/', AsyncStatusApi.as_view(), name='async_process_status_api'),
     path('api/pipeline/logs/<pk>/', PipelineProcessApi.as_view(), name='pipeline_api'),
     path('api/target/<pk>/', TargetDetailApiView.as_view(), name='target_api'),
+    path('api/observe/', ObservationAlertApiCreateView.as_view(), name='observe_api'),
 ]

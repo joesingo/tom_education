@@ -27,7 +27,7 @@ def make_templated_form(base_class):
         new_template_action = ('create-template', 'Create new template')
 
         def __init__(self, *args, **kwargs):
-            self.instantiate_template_url = kwargs.pop('instantiate_template_url')
+            self.form_url = kwargs.pop('form_url')
             show_create = kwargs.pop('show_create')
 
             super().__init__(*args, **kwargs)
@@ -53,7 +53,7 @@ def make_templated_form(base_class):
                 links = []
                 for template in templates:
                     links.append('<a href="{url}">{text}</a>'.format(
-                        url=template.get_create_url(self.instantiate_template_url),
+                        url=template.get_create_url(self.form_url),
                         text=template.name
                     ))
                 return Layout(HTML('Create from template: '), HTML(', '.join(links)))

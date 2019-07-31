@@ -18,24 +18,36 @@ import imageio
 import numpy as np
 from tom_dataproducts.models import DataProduct, DataProductGroup, IMAGE_FILE
 from tom_targets.models import Target
+from tom_observations.models import ObservationRecord
 from tom_observations.tests.factories import ObservingRecordFactory
 from tom_observations.tests.utils import FakeFacility, FakeFacilityForm
 
 from tom_education.forms import DataProductActionForm, GalleryForm
 from tom_education.models import (
-    AsyncError, AsyncProcess, ObservationTemplate, TimelapseDataProduct,
-    TimelapseProcess, PipelineProcess, InvalidPipelineError,
+    ASYNC_STATUS_CREATED,
+    ASYNC_STATUS_FAILED,
+    ASYNC_STATUS_PENDING,
+    AsyncError,
+    AsyncProcess,
     DateFieldNotFoundError,
-    ASYNC_STATUS_CREATED, ASYNC_STATUS_PENDING, ASYNC_STATUS_FAILED,
-    TIMELAPSE_GIF, TIMELAPSE_MP4, TIMELAPSE_WEBM
+    InvalidPipelineError,
+    ObservationAlert,
+    ObservationTemplate,
+    PipelineProcess,
+    TIMELAPSE_GIF,
+    TIMELAPSE_MP4,
+    TIMELAPSE_WEBM,
+    TimelapseDataProduct,
+    TimelapseProcess,
 )
 from tom_education.tasks import make_timelapse
 
 
 class FakeTemplateFacilityForm(FakeFacilityForm):
-    # Add an extra field so we can check that the correct field is used as the
-    # identifier
+    # Add some extra fields so we can check that the correct field is used as
+    # the identifier
     extra_field = forms.CharField()
+    another_extra_field = forms.IntegerField()
 
 
 class FakeTemplateFacility(FakeFacility):
@@ -143,6 +155,7 @@ class ObservationTemplateTestCase(TestCase):
         fields = {
             'test_input': 'some-name',
             'extra_field': 'this is some extra text',
+            'another_extra_field': 4,
             'target_id': self.target.pk,
             'facility': self.facility,
         }
@@ -190,6 +203,7 @@ class ObservationTemplateTestCase(TestCase):
             response = self.client.post(self.get_base_url(), {
                 'test_input': 'cool-template-name',
                 'extra_field': 'blah',
+                'another_extra_field': 4,
                 'target_id': self.target.pk,
                 'facility': self.facility,
                 'create-template': 'yep'
@@ -213,7 +227,8 @@ class ObservationTemplateTestCase(TestCase):
             name='mytemplate',
             target=self.target,
             facility=self.facility,
-            fields='{"test_input": "mytemplate", "extra_field": "someextravalue"}'
+            fields='{"test_input": "mytemplate", "extra_field": "someextravalue", '
+                   '"another_extra_field": 5}'
         )
         url = self.get_url(self.target) + '&template_id=' + str(template.pk)
 
@@ -222,6 +237,7 @@ class ObservationTemplateTestCase(TestCase):
         initial = response.context['form'].initial
         self.assertEqual(initial['test_input'], 'mytemplate-2019-01-02-030405')
         self.assertEqual(initial['extra_field'], 'someextravalue')
+        self.assertEqual(initial['another_extra_field'], 5)
 
 
 @override_settings(TOM_FACILITY_CLASSES=['tom_observations.tests.utils.FakeFacility'])
@@ -1129,3 +1145,118 @@ class TargetDetailApiTestCase(TestCase):
         response_404 = self.client.get(url_404)
         self.assertEqual(response_404.status_code, 404)
         self.assertEqual(response_404.json(), {'detail': 'Not found.'})
+
+
+@override_settings(TOM_FACILITY_CLASSES=FAKE_FACILITIES)
+@patch('tom_education.models.ObservationTemplate.get_identifier_field', return_value='test_input')
+@patch('tom_education.views.TemplatedObservationCreateView.supported_facilities', ('TemplateFake',))
+class ObservationAlertApiTestCase(TestCase):
+    def setUp(self):
+        self.target = Target.objects.create(identifier='target123', name='my target')
+        self.template = ObservationTemplate.objects.create(
+            name='mytemplate',
+            target=self.target,
+            facility='TemplateFake',
+            fields='{"test_input": "mytemplate", "extra_field": "somevalue", "another_extra_field": 17}'
+        )
+
+    @patch('tom_education.models.observation_template.datetime')
+    def test_create(self, dt_mock, _mock):
+        dt_mock.now.return_value = datetime(
+            year=2019, month=1, day=2, hour=3, minute=4, second=5, microsecond=6
+        )
+        url = reverse('tom_education:observe_api')
+        response = self.client.post(url, {
+            'target': self.target.pk,
+            'template_name': self.template.name,
+            'facility': 'TemplateFake',
+            'overrides': {'extra_field': 'hello'},
+            'email': 'someone@somesite.org',
+        }, content_type='application/json')
+        self.assertEqual(response.status_code, 201)
+
+        # Check observation and alert were created
+        self.assertEqual(ObservationRecord.objects.count(), 1)
+        self.assertEqual(ObservationAlert.objects.count(), 1)
+
+        ob = ObservationRecord.objects.first()
+        alert = ObservationAlert.objects.first()
+
+        self.assertEqual(ob.target, self.target)
+        self.assertEqual(ob.facility, 'TemplateFake')
+        self.assertEqual(json.loads(ob.parameters), {
+            'target_id': self.target.pk,
+            'facility': 'TemplateFake',
+            'test_input': 'mytemplate-2019-01-02-030405',
+            'extra_field': 'hello',
+            'another_extra_field': 17,
+        })
+
+        self.assertEqual(alert.observation, ob)
+        self.assertEqual(alert.email, 'someone@somesite.org')
+
+    def test_no_overrides(self, _mock):
+        url = reverse('tom_education:observe_api')
+        response = self.client.post(url, {
+            'target': self.target.pk,
+            'template_name': self.template.name,
+            'facility': 'TemplateFake',
+            'email': 'someone@somesite.org',
+        }, content_type='application/json')
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(ObservationAlert.objects.count(), 1)
+
+    def test_invalid_target(self, _mock):
+        url = reverse('tom_education:observe_api')
+        response = self.client.post(url, {
+            'target': 10000000000,
+            'template_name': self.template.name,
+            'facility': 'TemplateFake',
+            'email': 'someone@somesite.org',
+        }, content_type='application/json')
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json(), {
+            'detail': 'Target not found.'
+        })
+
+    def test_invalid_facility(self, _mock):
+        url = reverse('tom_education:observe_api')
+        response = self.client.post(url, {
+            'target': self.target.pk,
+            'template_name': self.template.name,
+            'facility': 'the facility you were looking for does not exist',
+            'email': 'someone@somesite.org',
+        }, content_type='application/json')
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json(), {
+            'detail': 'Facility not found.'
+        })
+
+    def test_invalid_template(self, _mock):
+        url = reverse('tom_education:observe_api')
+        response = self.client.post(url, {
+            'target': self.target.pk,
+            'template_name': 'tempo',
+            'facility': 'TemplateFake',
+            'email': 'someone@somesite.org',
+        }, content_type='application/json')
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json(), {
+            'detail': "Template 'tempo' not found for target 'target123' and facility 'TemplateFake'"
+        })
+
+    def test_invalid_form(self, _mock):
+        # Check that form validation is called, and that errors are passed back
+        # in the API response
+        url = reverse('tom_education:observe_api')
+        response = self.client.post(url, {
+            'target': self.target.pk,
+            'template_name': self.template.name,
+            'facility': 'TemplateFake',
+            'email': 'someone@somesite.org',
+            'overrides': {'another_extra_field': 'not an integer'},
+        }, content_type='application/json')
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(), {
+            'another_extra_field': ['Enter a whole number.']
+        })
