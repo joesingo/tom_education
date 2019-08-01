@@ -6,10 +6,12 @@ from unittest.mock import patch
 
 from astropy.io import fits
 from django import forms
+from django.core import mail
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import File
 from django.core.management import call_command
 from django.db import transaction
+from django.db.models.query import QuerySet
 from django.urls import reverse
 from django.test import TestCase, override_settings
 from django.contrib.auth.models import User
@@ -1260,3 +1262,104 @@ class ObservationAlertApiTestCase(TestCase):
         self.assertEqual(response.json(), {
             'another_extra_field': ['Enter a whole number.']
         })
+
+
+@override_settings(TOM_FACILITY_CLASSES=FAKE_FACILITIES)
+@patch('tom_education.tests.FakeTemplateFacility.save_data_products')
+@patch('tom_education.models.TimelapseDataProduct.write', new=lambda s: None)
+@override_settings(TOM_EDUCATION_FROM_EMAIL_ADDRESS='tom@toolkit.edu')
+class ProcessObservationAlertsTestCase(TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        target_ident = 'target_{}'.format(datetime.now().strftime('%s'))
+        cls.target = Target.objects.create(identifier=target_ident, name='my target')
+        cls.ob = ObservingRecordFactory.create(
+            target_id=cls.target.pk,
+            facility=FakeTemplateFacility.name,
+            status='not even started'
+        )
+        cls.dp1 = DataProduct.objects.create(product_id='dp1', target=cls.target)
+        cls.dp2 = DataProduct.objects.create(product_id='dp2', target=cls.target)
+        cls.dp3 = DataProduct.objects.create(product_id='dp3', target=cls.target)
+        cls.dp1.data.save('img1.fits.fz', File(BytesIO()))
+        cls.dp2.data.save('img2.fits.fz', File(BytesIO()))
+        # Create a non-FITS file
+        cls.dp3.data.save('img3.png', File(BytesIO()))
+
+    def test_status_and_data_products_updated(self, save_dp_mock):
+        alert = ObservationAlert.objects.create(observation=self.ob, email='someone@somesite.org')
+        call_command('process_observation_alerts')
+        save_dp_mock.assert_called_once_with(alert.observation)
+        alert.refresh_from_db()
+        self.assertEqual(alert.observation.status, 'COMPLETED')
+
+    def test_non_alert_observation_not_updated(self, save_dp_mock):
+        non_alert_ob = ObservingRecordFactory.create(
+            target_id=self.target.pk,
+            facility=FakeTemplateFacility.name,
+            status='not even started'
+        )
+        call_command('process_observation_alerts')
+        save_dp_mock.assert_not_called()
+        non_alert_ob.refresh_from_db()
+        self.assertEqual(non_alert_ob.status, 'not even started')
+
+    @patch('tom_education.models.TimelapseDataProduct.create_timestamped',
+           wraps=TimelapseDataProduct.create_timestamped)
+    def test_timelapse_created(self, tl_mock, save_dp_mock):
+        alert = ObservationAlert.objects.create(observation=self.ob, email='someone@somesite.org')
+        call_command('process_observation_alerts')
+        self.assertEqual(TimelapseDataProduct.objects.count(), 1)
+
+        # Check method to create timelapse was called with the correct
+        # arguments
+        tl_mock.assert_called_once()
+        args, _ = tl_mock.call_args
+        self.assertEqual(len(args), 2)
+        self.assertEqual(args[0], self.target)
+        self.assertIsInstance(args[1], QuerySet)
+        self.assertEqual(set(args[1].all()), {self.dp1, self.dp2})
+
+    def test_old_timelapses_deleted(self, save_dp_mock):
+        alert = ObservationAlert.objects.create(observation=self.ob, email='someone@somesite.org')
+        tl = TimelapseDataProduct.objects.create(target=self.target, product_id='mytimelapse')
+        call_command('process_observation_alerts')
+        # Old timelapse and its data should have been deleted
+        self.assertEqual(TimelapseDataProduct.objects.filter(pk=tl.pk).count(), 0)
+        self.assertFalse(os.path.isfile(tl.data.path))
+        # Should be one (new) timelapse
+        self.assertEqual(TimelapseDataProduct.objects.count(), 1)
+
+    @patch('tom_education.models.TimelapseDataProduct.create_timestamped',
+           wraps=TimelapseDataProduct.create_timestamped)
+    def test_multiple_alerts_single_target(self, tl_mock, save_dp_mock):
+        # Create two alerts for the same observation: the target should only
+        # have one new timelapse created
+        alert1 = ObservationAlert.objects.create(observation=self.ob, email='someone@somesite.org')
+        alert2 = ObservationAlert.objects.create(observation=self.ob, email='someoneelse@somesite.org')
+        call_command('process_observation_alerts')
+        tl_mock.assert_called_once()
+
+    @patch('tom_education.models.TimelapseDataProduct.create_timestamped',
+           wraps=TimelapseDataProduct.create_timestamped)
+    def test_exclude_raw_data(self, tl_mock, save_dp_mock):
+        raw_dp = DataProduct.objects.create(product_id='raw', target=self.target)
+        raw_dp.data.save('rawfile.e00.fits.fz', File(BytesIO()))
+        alert = ObservationAlert.objects.create(observation=self.ob, email='someone@somesite.org')
+        call_command('process_observation_alerts')
+
+        tl_mock.assert_called_once()
+        args, _ = tl_mock.call_args
+        # Raw file should not be included
+        self.assertEqual(set(args[1].all()), {self.dp1, self.dp2})
+
+    def test_emails_sent(self, save_dp_mock):
+        alert = ObservationAlert.objects.create(observation=self.ob, email='someone@somesite.org')
+        call_command('process_observation_alerts')
+
+        self.assertEqual(len(mail.outbox), 1)
+        msg = mail.outbox[0]
+        self.assertEqual(msg.to, ['someone@somesite.org'])
+        self.assertIn('Observation', msg.subject)
+        self.assertIn('observation', msg.body)

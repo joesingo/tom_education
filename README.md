@@ -23,6 +23,8 @@ timelapses) are performed asynchronously in separate worker processes using
 [django_dramatiq](https://github.com/Bogdanp/django_dramatiq) and
 [Redis](https://redis.io).
 
+**TODO:** link to observation alert and API documentation
+
 ## Installation
 
 **Note:** At the time of writing, `tom_education` uses features of `tomtoolkit`
