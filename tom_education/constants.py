@@ -1,0 +1,1 @@
+RAW_FILE_EXTENSION = 'e00.fits.fz'

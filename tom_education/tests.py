@@ -502,7 +502,7 @@ class TimelapseTestCase(TestCase):
         for prod in self.prods[:3]:
             prod.group.add(group)
             prod.save()
-        rawfilename = 'somerawfile_{}.e91.fits.fz'.format(datetime.now().strftime('%s'))
+        rawfilename = 'somerawfile_{}.e00.fits.fz'.format(datetime.now().strftime('%s'))
         self.prods[2].data.save(rawfilename, File(BytesIO()), save=True)
 
         # Make a product in the group but for a different target: it should
