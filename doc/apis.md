@@ -11,7 +11,7 @@ timestamp](https://en.wikipedia.org/wiki/Unix_time) as returned by
 [datetime.timestamp()](https://docs.python.org/3.9/library/datetime.html#datetime.datetime.timestamp)
 in the Python standard library.
 
-## Async process status API
+## Async process API
 
 Get information about all asynchronous processes (timelapses, pipelines etc)
 associated with a given target.
@@ -65,7 +65,7 @@ Key-value object with the following keys:
 }
 ```
 
-## Pipeline logs API
+## Pipeline process API
 
 An extension of the async process API for pipeline processes.
 
@@ -97,5 +97,64 @@ objects from the async process API and the following additional fields:
   "logs": "Processing test_dp_ftfn0m410-kb23-20190413-0059-e91.fits.fz",
   "group_name": "dummy_m13_2019-07-22-163925_outputs",
   "group_url": "/dataproducts/data/group/37/"
+}
+```
+
+## Target detail and timelapses API
+
+Return a subset of fields for a `Target` object and a listing of its associated
+timelapses.
+
+**URL:** `/api/target/<target PK>/`
+
+**Method:** GET
+
+**Output:**
+
+Key-value object with the following keys:
+
+* `target`: key-value object:
+    * `identifier`
+    * `name`
+    * `name2`
+    * `name3`
+    * `extra_fields`: key-value object containing [extra target
+      fields](https://tomtoolkit.github.io/docs/target_fields)
+* `timelapses`: list of timelapses sorted by creation time (most recent first).
+  Each timelapse object has the following keys:
+    * `name`: basename of timelapse filename
+    * `format`: the format of the timelapse (e.g. `gif`)
+    * `url`: URL from which the timelapses can be downloaded
+    * `created`: creation time
+    * `frames`: the number of frames that comprise the timelapse
+
+**Example output:**
+```
+{
+  "target": {
+    "identifier": "m13",
+    "name": "Hercules Globular Cluster",
+    "name2": "",
+    "name3": "",
+    "extra_fields": {
+      "mykey": "myvalue"
+    }
+  },
+  "timelapses": [
+    {
+      "name": "timelapse_m13_2019-08-02-100915.webm",
+      "format": "webm",
+      "url": "/data/m13/none/timelapse_m13_2019-08-02-100915.webm",
+      "created": 1564740555.119924,
+      "frames": 2
+    },
+    {
+      "name": "timelapse_m13_2019-08-02-093131.webm",
+      "format": "webm",
+      "url": "/data/m13/none/timelapse_m13_2019-08-02-093131.webm",
+      "created": 1564738291.45856,
+      "frames": 3
+    }
+  ]
 }
 ```
