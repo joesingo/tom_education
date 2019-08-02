@@ -44,8 +44,8 @@ class PipelineProcessSerializer(AsyncProcessSerializer):
     class Meta:
         model = PipelineProcess
         fields = [
-            'identifier', 'created', 'status', 'terminal_timestamp', 'failure_message', 'logs',
-            'group_name', 'group_url'
+            'identifier', 'created', 'status', 'terminal_timestamp', 'failure_message', 'view_url',
+            'logs', 'group_name', 'group_url'
         ]
 
     def get_group_name(self, obj):

@@ -79,11 +79,16 @@ def write_fits_image_file(data, date=None):
     hdul.writeto(buf)
     return buf
 
+@override_settings(REST_FRAMEWORK={})  # Remove throttling
+class TomEducationTestCase(TestCase):
+    """
+    Base class for tom_education tests
+    """
 
 @override_settings(TOM_FACILITY_CLASSES=FAKE_FACILITIES)
 @patch('tom_education.models.ObservationTemplate.get_identifier_field', return_value='test_input')
 @patch('tom_education.views.TemplatedObservationCreateView.supported_facilities', ('TemplateFake',))
-class ObservationTemplateTestCase(TestCase):
+class ObservationTemplateTestCase(TomEducationTestCase):
     facility = 'TemplateFake'
 
     @classmethod
@@ -243,7 +248,7 @@ class ObservationTemplateTestCase(TestCase):
 
 
 @override_settings(TOM_FACILITY_CLASSES=['tom_observations.tests.utils.FakeFacility'])
-class TimelapseTestCase(TestCase):
+class TimelapseTestCase(TomEducationTestCase):
     def setUp(self):
         super().setUp()
         self.user = User.objects.create_user(username='test', email='test@example.com')
@@ -574,7 +579,7 @@ class TimelapseTestCase(TestCase):
             self.assertNotIn(filename, response.content.decode(), filename)
 
 
-class GalleryTestCase(TestCase):
+class GalleryTestCase(TomEducationTestCase):
     def setUp(self):
         super().setUpClass()
         self.url = reverse('tom_education:gallery')
@@ -644,7 +649,7 @@ class GalleryTestCase(TestCase):
         self.assertEqual(str(messages[0]), 'Added 2 data products to group \'mygroup\'')
 
 
-class AsyncProcessTestCase(TestCase):
+class AsyncProcessTestCase(TomEducationTestCase):
     @patch('tom_education.models.async_process.datetime')
     def test_terminal_timestamp(self, dt_mock):
         somedate = datetime(
@@ -661,7 +666,7 @@ class AsyncProcessTestCase(TestCase):
         self.assertEqual(proc.terminal_timestamp, somedate)
 
 
-class AsyncStatusApiTestCase(TestCase):
+class AsyncStatusApiTestCase(TomEducationTestCase):
     @patch('django.utils.timezone.now')
     @patch('tom_education.models.async_process.datetime')
     @patch('tom_education.views.datetime')
@@ -791,7 +796,7 @@ class FakePipelineBadFlags(FakePipeline):
         proxy = True
 
 
-class PipelineTestCase(TestCase):
+class PipelineTestCase(TomEducationTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -895,6 +900,7 @@ class PipelineTestCase(TestCase):
         proc.save()
 
         url = reverse('tom_education:pipeline_api', kwargs={'pk': proc.pk})
+        view_url = reverse('tom_education:pipeline_detail', kwargs={'pk': proc.pk})
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {
@@ -904,6 +910,7 @@ class PipelineTestCase(TestCase):
             'logs': '',
             'terminal_timestamp': None,
             'failure_message': None,
+            'view_url': view_url,
             'group_name': None,
             'group_url': None,
         })
@@ -918,6 +925,7 @@ class PipelineTestCase(TestCase):
             'status': ASYNC_STATUS_CREATED,
             'terminal_timestamp': 360,
             'failure_message': None,
+            'view_url': view_url,
             'group_url': group_url,
             'group_name': 'someprocess_outputs',
             'logs': proc.logs
@@ -935,6 +943,7 @@ class PipelineTestCase(TestCase):
             'status': ASYNC_STATUS_FAILED,
             'terminal_timestamp': 360,
             'failure_message': 'something went wrong',
+            'view_url': view_url,
             'group_url': group_url,
             'group_name': 'someprocess_outputs',
             'logs': proc.logs
@@ -1041,7 +1050,7 @@ class PipelineTestCase(TestCase):
         PipelineProcess.validate_flags(FakePipelineWithFlags.flags)
 
 
-class TargetDetailApiTestCase(TestCase):
+class TargetDetailApiTestCase(TomEducationTestCase):
     def setUp(self):
         super().setUp()
         now = datetime.now().timestamp()
@@ -1152,7 +1161,7 @@ class TargetDetailApiTestCase(TestCase):
 @override_settings(TOM_FACILITY_CLASSES=FAKE_FACILITIES)
 @patch('tom_education.models.ObservationTemplate.get_identifier_field', return_value='test_input')
 @patch('tom_education.views.TemplatedObservationCreateView.supported_facilities', ('TemplateFake',))
-class ObservationAlertApiTestCase(TestCase):
+class ObservationAlertApiTestCase(TomEducationTestCase):
     def setUp(self):
         self.target = Target.objects.create(identifier='target123', name='my target')
         self.template = ObservationTemplate.objects.create(
@@ -1268,7 +1277,7 @@ class ObservationAlertApiTestCase(TestCase):
 @patch('tom_education.tests.FakeTemplateFacility.save_data_products')
 @patch('tom_education.models.TimelapseDataProduct.write', new=lambda s: None)
 @override_settings(TOM_EDUCATION_FROM_EMAIL_ADDRESS='tom@toolkit.edu')
-class ProcessObservationAlertsTestCase(TestCase):
+class ProcessObservationAlertsTestCase(TomEducationTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
