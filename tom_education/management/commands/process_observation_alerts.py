@@ -20,6 +20,8 @@ class Command(BaseCommand):
 
         for alert in ObservationAlert.objects.all():
             ob = alert.observation
+            self.stdout.write('Processing alert for observation {}'.format(ob.observation_id))
+
             facility_class = get_service_class(ob.facility)
             facility = facility_class()
 

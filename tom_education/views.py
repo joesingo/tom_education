@@ -362,6 +362,10 @@ class TargetDetailApiView(RetrieveAPIView):
 
 
 class ObservationAlertApiCreateView(CreateAPIView):
+    """
+    Create an ObservationAlert by instantiating an ObservationTemplate for a
+    given target
+    """
     throttle_scope = 'observe'
 
     serializer_class = ObservationAlertSerializer
