@@ -17,13 +17,16 @@ Plugin for the TOM Toolkit adding features intended for educational use.
 * [Data pipelines](doc/pipelines.md): Run a user-supplied data pipeline on a
   selection of files and save the outputs as data products in the TOM.
 
+* [API endpoints](doc/apis.md): REST API endpoints give information about
+  targets, timelapses, pipeline runs, and allow observations to be submitted.
+
+**TODO:** document observation alerts
+
 Long-running tasks (such as running data pipelines and creating large
 timelapses) are performed asynchronously in separate worker processes using
 [Dramatiq](https://dramatiq.io/) via
 [django_dramatiq](https://github.com/Bogdanp/django_dramatiq) and
 [Redis](https://redis.io).
-
-**TODO:** link to observation alert and API documentation
 
 ## Installation
 
