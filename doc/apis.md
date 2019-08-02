@@ -22,6 +22,8 @@ associated with a given target.
 
 **Output:**
 
+Key-value object with the following keys:
+
 * `processes`: list of processes, sorted by creation time (most recent first).
   Each process has the following keys:
     * `identifier`
@@ -67,7 +69,7 @@ associated with a given target.
 
 An extension of the async process API for pipeline processes.
 
-**URL:** `/api/pipeline/logs/<pipeline PK>/
+**URL:** `/api/pipeline/logs/<pipeline PK>/`
 
 **Method:** GET
 
@@ -92,7 +94,7 @@ objects from the async process API and the following additional fields:
   "terminal_timestamp": 1563813673.560319,
   "failure_message": null,
   "view_url": "/pipeline/45",
-  "logs": "Processing test_dp_ftfn0m410-kb23-20190413-0059-e91.fits.fz\nProcessing test_dp_ftfn0m410-kb23-20190413-0057-e91.fits.fz...",
+  "logs": "Processing test_dp_ftfn0m410-kb23-20190413-0059-e91.fits.fz",
   "group_name": "dummy_m13_2019-07-22-163925_outputs",
   "group_url": "/dataproducts/data/group/37/"
 }
