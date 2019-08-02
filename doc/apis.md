@@ -11,14 +11,14 @@ in the Python standard library.
 
 The API endpoints are:
 
-* [Async process API](async-process-api): Get information about all
+* [Async process API](#async-process-api): Get information about all
   asynchronous processes (timelapses, pipelines etc) associated with a given
   target.
 
-* [Pipeline process API](pipeline-process-api): An extension of the async
+* [Pipeline process API](#pipeline-process-api): An extension of the async
   process API for pipeline processes.
 
-* [Target detail and timelapses API](target-detail-and-timelapses-api):
+* [Target detail and timelapses API](#target-detail-and-timelapses-api):
   Return a subset of fields for a `Target` object and a listing of its
   associated timelapses.
 
