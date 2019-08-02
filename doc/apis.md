@@ -9,6 +9,10 @@ timestamp](https://en.wikipedia.org/wiki/Unix_time) as returned by
 [datetime.timestamp()](https://docs.python.org/3.9/library/datetime.html#datetime.datetime.timestamp)
 in the Python standard library.
 
+The output formats described below are for success cases. If an error occurs,
+the JSON response is of the form `{"detail": "<error message>"}` unless stated
+otherwise.
+
 The API endpoints are:
 
 * [Async process API](#async-process-api): Get information about all
@@ -16,11 +20,16 @@ The API endpoints are:
   target.
 
 * [Pipeline process API](#pipeline-process-api): An extension of the async
-  process API for pipeline processes.
+  process API for [pipeline processes](/doc/pipelines.md).
 
 * [Target detail and timelapses API](#target-detail-and-timelapses-api):
   Return a subset of fields for a `Target` object and a listing of its
   associated timelapses.
+
+* [Create observation alert API](#create-observation-alert-api): Create an
+  observation and [observation alert](/doc/observation_alerts.md) by
+  instantiating an [observation template](/doc/templated_observation_forms.md)
+  for a target.
 
 ## Async process API
 
@@ -28,9 +37,7 @@ The API endpoints are:
 
 **Method:** GET
 
-**Output:**
-
-Key-value object with the following keys:
+**Output:** Key-value object with the following keys:
 
 * `processes`: list of processes, sorted by creation time (most recent first).
   Each process has the following keys:
@@ -79,9 +86,7 @@ Key-value object with the following keys:
 
 **Method:** GET
 
-**Output:**
-
-A single key-value object which contains all the fields in the `processes`
+**Output:** A single key-value object which contains all the fields in the `processes`
 objects from the async process API and the following additional fields:
 
 * `logs`: log output from the pipeline process (see the [pipeline documentation
@@ -112,9 +117,7 @@ objects from the async process API and the following additional fields:
 
 **Method:** GET
 
-**Output:**
-
-Key-value object with the following keys:
+**Output:** Key-value object with the following keys:
 
 * `target`: key-value object:
     * `identifier`
@@ -159,5 +162,39 @@ Key-value object with the following keys:
       "frames": 3
     }
   ]
+}
+```
+
+## Create observation alert API
+
+**URL:** `/api/observe/`
+
+**Method:** POST
+
+**Input**: A key-value JSON object with the following keys:
+
+* `target`: primary key for the target object
+* `template_name`: the name of the observation template to use
+* `facility`: observing facility: currently only `LCO` is supported
+* `overrides`: key-value mapping for form fields to override after populating
+  fields through the observation template
+* `email`: email address to associate with the observation alert
+
+**Output:** The input JSON data is returned as output on success. If the input
+is invalid, the response is of the form `{"<field_name>": ["<error message", ...],
+...}` with error message(s) for each invalid field, or `{"detail": "<error
+message>"}` for non-field errors.
+
+**Example input:**
+```
+{
+  "target": 1,
+  "template_name": "my-template",
+  "facility": "LCO",
+  "overrides": {
+    "start": "2019-08-05T00:00:00",
+    "end": "2019-08-10T00:00:00"
+  },
+  "email": "someone@someplace.net"
 }
 ```
