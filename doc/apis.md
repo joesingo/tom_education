@@ -1,7 +1,5 @@
 # API endpoints
 
-## Overview
-
 Each API endpoint has the form `/api/*`, and returns a JSON response. For POST
 requests, send data as JSON and set the `Content-Type` HTTP header to
 `application/json`.
@@ -11,10 +9,20 @@ timestamp](https://en.wikipedia.org/wiki/Unix_time) as returned by
 [datetime.timestamp()](https://docs.python.org/3.9/library/datetime.html#datetime.datetime.timestamp)
 in the Python standard library.
 
-## Async process API
+The API endpoints are:
 
-Get information about all asynchronous processes (timelapses, pipelines etc)
-associated with a given target.
+* [Async process API](async-process-api): Get information about all
+  asynchronous processes (timelapses, pipelines etc) associated with a given
+  target.
+
+* [Pipeline process API](pipeline-process-api): An extension of the async
+  process API for pipeline processes.
+
+* [Target detail and timelapses API](target-detail-and-timelapses-api):
+  Return a subset of fields for a `Target` object and a listing of its
+  associated timelapses.
+
+## Async process API
 
 **URL:** `/api/async/status/<target PK>/`
 
@@ -67,8 +75,6 @@ Key-value object with the following keys:
 
 ## Pipeline process API
 
-An extension of the async process API for pipeline processes.
-
 **URL:** `/api/pipeline/logs/<pipeline PK>/`
 
 **Method:** GET
@@ -101,9 +107,6 @@ objects from the async process API and the following additional fields:
 ```
 
 ## Target detail and timelapses API
-
-Return a subset of fields for a `Target` object and a listing of its associated
-timelapses.
 
 **URL:** `/api/target/<target PK>/`
 
