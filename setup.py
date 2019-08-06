@@ -14,7 +14,7 @@ setup(
     author='Joe Singleton',
     author_email='joesingo@gmail.com',
     install_requires=[
-        'tomtoolkit',
+        'tomtoolkit[test]==0.5.1',  # TODO: install test deps in extras_require
         'numpy',
         'imageio-ffmpeg==0.3.0',
         'imageio==2.5.0',
