@@ -10,6 +10,7 @@ from django.core import mail
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import File
 from django.core.management import call_command
+from django.conf import settings
 from django.db import transaction
 from django.db.models.query import QuerySet
 from django.urls import reverse
@@ -1372,3 +1373,12 @@ class ProcessObservationAlertsTestCase(TomEducationTestCase):
         self.assertEqual(msg.to, ['someone@somesite.org'])
         self.assertIn('Observation', msg.subject)
         self.assertIn('observation', msg.body)
+
+    @override_settings()
+    def test_no_from_email_address(self, save_dp_mock):
+        # Unset from email add setting: should get an error message
+        del settings.TOM_EDUCATION_FROM_EMAIL_ADDRESS
+        alert = ObservationAlert.objects.create(observation=self.ob, email='someone@somesite.org')
+        buf = StringIO()
+        call_command('process_observation_alerts', stderr=buf)
+        self.assertIn("TOM_EDUCATION_FROM_EMAIL_ADDRESS not set", buf.getvalue())

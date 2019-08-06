@@ -14,6 +14,13 @@ class Command(BaseCommand):
     IMAGE_FILE_SUFFIX = '.fits.fz'
 
     def handle(self, *args, **options):
+        # Check required settings are present before proceeding
+        try:
+            from_addr = settings.TOM_EDUCATION_FROM_EMAIL_ADDRESS
+        except AttributeError:
+            self.stderr.write('TOM_EDUCATION_FROM_EMAIL_ADDRESS not set in settings.py')
+            return
+
         # Keep track of targets and alerts with new data
         new_data_targets = set([])
         new_data_alerts = set([])
@@ -55,7 +62,6 @@ class Command(BaseCommand):
             subject = "Observation for '{}' has new data".format(target.name)
             message = ("Your observation for '{}' has completed, and a "
                        "timelapse is available".format(target.name))
-            from_addr = settings.TOM_EDUCATION_FROM_EMAIL_ADDRESS
             to = [alert.email]
             send_mail(subject, message, from_addr, to)
         self.stdout.write('Send {} email updates'.format(len(new_data_alerts)))
