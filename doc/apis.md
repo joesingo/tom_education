@@ -216,4 +216,4 @@ REST_FRAMEWORK = {
     },
 }
 ```
-The `observe` key can be changes to alter the throttling rate.
+The `observe` key can be changed to alter the throttling rate.
