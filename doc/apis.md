@@ -198,3 +198,22 @@ message>"}` for non-field errors.
   "email": "someone@someplace.net"
 }
 ```
+
+### Rate throttling
+
+This endpoint uses [Django REST Framework's
+throttling](https://www.django-rest-framework.org/api-guide/throttling/) to
+prevent abuse by limiting the number of observation alerts that can be created
+per minute. This is controlled by the `REST_FRAMEWORK` setting, which is set as
+follows by the setup script:
+```
+REST_FRAMEWORK = {
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.ScopedRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'observe': '6/minute',
+    },
+}
+```
+The `observe` key can be changes to alter the throttling rate.
