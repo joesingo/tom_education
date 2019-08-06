@@ -20,14 +20,12 @@ class Command(BaseCommand):
 
         for alert in ObservationAlert.objects.all():
             ob = alert.observation
-            self.stdout.write('Processing alert for observation {}'.format(ob.observation_id))
-
             facility_class = get_service_class(ob.facility)
             facility = facility_class()
 
             if ob.status not in facility.get_terminal_observing_states():
                 facility.update_observation_status(ob.observation_id)
-                self.stdout.write('Saving data for observation {}'.format(ob.observation_id))
+                self.stdout.write('Checking for new data for observation {}'.format(ob.observation_id))
                 if facility.save_data_products(ob):
                     new_data_targets.add(ob.target)
                     new_data_alerts.add(alert)
@@ -37,6 +35,8 @@ class Command(BaseCommand):
             # TODO: supress imageio output
             prods = (target.dataproduct_set.filter(data__endswith=self.IMAGE_FILE_SUFFIX)
                                            .exclude(data__endswith=RAW_FILE_EXTENSION))
+            if not prods.exists():
+                continue
             new_tl = TimelapseDataProduct.create_timestamped(target, prods)
             self.stdout.write('Creating timelapse for target {}'.format(target.identifier))
             new_tl.write()
