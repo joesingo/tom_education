@@ -1,0 +1,4 @@
+include README.md
+recursive-include doc
+recursive-include tom_education/templates *
+recursive-include tom_education/static *
