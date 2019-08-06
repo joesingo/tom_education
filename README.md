@@ -20,7 +20,8 @@ Plugin for the TOM Toolkit adding features intended for educational use.
 * [API endpoints](doc/apis.md): REST API endpoints give information about
   targets, timelapses, pipeline runs, and allow observations to be submitted.
 
-**TODO:** document observation alerts
+* [Observation alerts](doc/observation_alerts.md): Associate an email address
+  with an observation to receive email updates when data is available
 
 Long-running tasks (such as running data pipelines and creating large
 timelapses) are performed asynchronously in separate worker processes using
