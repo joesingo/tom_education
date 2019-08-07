@@ -31,11 +31,6 @@ timelapses) are performed asynchronously in separate worker processes using
 
 ## Installation
 
-**Note:** At the time of writing, `tom_education` uses features of `tomtoolkit`
-that are not yet released. After installation, uninstall `tomtoolkit` and
-install the `development` branch [from
-GitHub](https://github.com/TOMToolkit/tom_base).
-
 1. Set up a TOM following the [getting started guide](https://tomtoolkit.github.io/docs/getting_started).
 
 2. Clone and install this package with `pip`:
