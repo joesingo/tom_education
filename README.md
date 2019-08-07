@@ -45,6 +45,10 @@ git clone <this repo>
 pip install tom_education
 ```
 
+**Note:** a dependency of one of `tom_education`'s dependencies requires a
+Fortran compiler to install. On Ubuntu, run `sudo apt-get install gfortran`
+before installing with `pip`.
+
 3. Add `tom_education` to `INSTALLED_APPS` in `settings.py`.
 
 ```python

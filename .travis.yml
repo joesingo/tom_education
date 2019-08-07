@@ -1,0 +1,19 @@
+dist: xenial
+language: python
+python:
+  - "3.7"
+install:
+  # Install dependencies
+  - sudo apt-get install gfortran
+  - pip install .[test]
+  # Create Django project
+  - django-admin startproject blank_tom
+  - cd blank_tom
+  # Do tomtoolkit setup
+  - sed -i 's#INSTALLED_APPS = \[#INSTALLED_APPS = ["tom_setup",#' blank_tom/settings.py
+  - echo -e "y\n1" | ./manage.py tom_setup  # Answer tom_setup's questions...
+  # Do tom_education setup
+  - sed -i 's#INSTALLED_APPS = \[#INSTALLED_APPS = ["tom_education",#' blank_tom/settings.py
+  - ./manage.py tom_education_setup
+script:
+  - ./manage.py test tom_education
