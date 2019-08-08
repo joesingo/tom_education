@@ -21,7 +21,8 @@ class AsyncProcessSerializer(serializers.ModelSerializer):
     class Meta:
         model = AsyncProcess
         fields = [
-            'identifier', 'created', 'status', 'terminal_timestamp', 'failure_message', 'view_url'
+            'identifier', 'created', 'status', 'terminal_timestamp', 'failure_message', 'view_url',
+            'process_type'
         ]
 
     def get_view_url(self, obj):

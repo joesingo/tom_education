@@ -18,6 +18,7 @@ class AsyncError(Exception):
 
 
 class AsyncProcess(models.Model):
+    process_type = models.CharField(null=True, blank=True, max_length=100)
     identifier = models.CharField(null=False, blank=False, max_length=50, unique=True)
     created = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=50, default=ASYNC_STATUS_PENDING)
@@ -28,6 +29,7 @@ class AsyncProcess(models.Model):
     target = models.ForeignKey(Target, on_delete=models.CASCADE, null=True, blank=True)
 
     def clean(self):
+        self.process_type = self.__class__.__name__
         if self.status in ASYNC_TERMINAL_STATES:
             self.terminal_timestamp = datetime.now()
 

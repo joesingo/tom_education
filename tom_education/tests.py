@@ -686,10 +686,11 @@ class AsyncStatusApiTestCase(TomEducationTestCase):
 
         django_mock.return_value = create_time1
         target = Target.objects.create(identifier='target123', name='my target')
-        proc = AsyncProcess.objects.create(
+        proc = TimelapseProcess.objects.create(
             identifier='hello',
             target=target,
             status=ASYNC_STATUS_PENDING,
+            timelapse_product=TimelapseDataProduct.objects.create(product_id='blah', target=target),
         )
         # Make a failed process with a different creation time
         # Have it an PipelineProcess to check 'view_url' is provided
@@ -705,6 +706,7 @@ class AsyncStatusApiTestCase(TomEducationTestCase):
         # Construct the dicts representing processes expected in the JSON
         # response (excluding fields that will change)
         proc_dict = {
+            'process_type': 'TimelapseProcess',
             'identifier': 'hello',
             'created': create_timestamp1,
             'terminal_timestamp': None,
@@ -712,6 +714,7 @@ class AsyncStatusApiTestCase(TomEducationTestCase):
             'failure_message': None,
         }
         failed_proc_dict = {
+            'process_type': 'PipelineProcess',
             'identifier': 'ohno',
             'created': create_timestamp2,
             'status': 'failed',

@@ -50,6 +50,7 @@ The API endpoints are:
     * `failure_message`: message explaining why the process failed, or `null`
     * `view_url`: relative URL to info page if this is a pipeline processes, or
       `null` for other process types
+    * `process_type`: string field identifying the type of process, e.g. `TimelapseProcess`
 * `timestamp`: current server time. This is useful for web clients that poll the
   API to detect when a process finishes, since the first received `timestamp`
   can be compared with the process's `terminal_timestamp` to exclude processes
