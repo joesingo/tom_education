@@ -1164,6 +1164,7 @@ class TargetDetailApiTestCase(TomEducationTestCase):
 @patch('tom_education.views.TemplatedObservationCreateView.supported_facilities', ('TemplateFake',))
 class ObservationAlertApiTestCase(TomEducationTestCase):
     def setUp(self):
+        super().setUp()
         self.target = Target.objects.create(identifier='target123', name='my target')
         self.template = ObservationTemplate.objects.create(
             name='mytemplate',
