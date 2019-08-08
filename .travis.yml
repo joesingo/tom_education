@@ -1,11 +1,12 @@
 dist: xenial
 language: python
+cache: pip
 python:
   - "3.7"
 install:
   # Install dependencies
   - sudo apt-get install gfortran
-  - pip install .[test]
+  - pip install .
   # Create Django project
   - django-admin startproject blank_tom
   - cd blank_tom
