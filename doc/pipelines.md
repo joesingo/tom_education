@@ -7,7 +7,8 @@ to an instance of a pipeline for a particular target and set of input files.
 
 Processes are run by selecting a number of data products on the target page in
 the TOM, and selecting the pipeline to run. Processes run asynchronously, and a
-separate page shown the status and log output as it progresses.
+[separate page shown the status and log output as it
+progresses](#status-and-log-page).
 
 On completion, a new `DataProductGroup` is created to store the outputs of the
 process as `DataProduct` objects.
@@ -158,3 +159,12 @@ class FlagDemo(PipelineProcess):
 ```
 
 Note that flag names should not contain whitespace.
+
+## Status and log page
+
+The status and log output of a pipeline process can be viewed at
+`/pipeline/<PK>`. Log output is updated every second, and can be scrolled
+automatically. This page also provides links to the data product group
+containing outputs.
+
+![Pipeline detail view screenshot](images/pipeline_log_view.png)
