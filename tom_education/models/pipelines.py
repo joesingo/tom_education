@@ -78,8 +78,7 @@ class PipelineProcess(AsyncProcess):
         """
         Return the pipelines dict from settings.py
         """
-        default = {}
-        return getattr(settings, 'TOM_EDUCATION_PIPELINES', default)
+        return getattr(settings, 'TOM_EDUCATION_PIPELINES', {})
 
     @classmethod
     def get_subclass(cls, name):

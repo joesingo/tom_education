@@ -42,7 +42,7 @@ from tom_education.serializers import (
     TargetDetailSerializer,
     TimestampField,
 )
-from tom_education.tasks import run_pipeline, make_timelapse
+from tom_education.tasks import make_timelapse, run_pipeline, send_task
 from tom_education.templatetags.dataproduct_extras import exclude_non_created_timelapses
 
 
@@ -183,7 +183,7 @@ class ActionableTargetDetailView(FormMixin, TargetDetailView):
         tl_process = TimelapseProcess.objects.create(
             identifier=tl_prod.get_filename(), timelapse_product=tl_prod, target=target
         )
-        make_timelapse.send(tl_process.pk)
+        send_task(make_timelapse, tl_process)
         return JsonResponse({'ok': True})
 
     def handle_pipeline(self, products, form):
@@ -221,7 +221,7 @@ class ActionableTargetDetailView(FormMixin, TargetDetailView):
         )
         process.input_files.add(*products)
         process.save()
-        run_pipeline.send(process.pk, name)
+        send_task(run_pipeline, process, name)
         return JsonResponse({'ok': True})
 
     def handle_view_gallery(self, products, form):
