@@ -288,13 +288,11 @@ class ObservationTemplateTestCase(TomEducationTestCase):
 
 
 @override_settings(TOM_FACILITY_CLASSES=['tom_observations.tests.utils.FakeFacility'])
-class TimelapseTestCase(TomEducationTestCase):
-    def setUp(self):
-        super().setUp()
-        self.user = User.objects.create_user(username='test', email='test@example.com')
-        self.client.force_login(self.user)
-        assign_perm('tom_targets.view_target', self.user, self.target)
-
+class DataProductTestCase(TomEducationTestCase):
+    """
+    Class providing a setUpClass method which creates a target, observation
+    record and several FITS data products
+    """
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -331,6 +329,30 @@ class TimelapseTestCase(TomEducationTestCase):
             buf = write_fits_image_file(cls.image_data, date)
             prod.data.save(product_id, File(buf), save=True)
             cls.prods.append(prod)
+
+
+class TargetDetailViewTestCase(DataProductTestCase):
+    def setUp(self):
+        super().setUp()
+        self.user = User.objects.create_user(username='test', email='test@example.com')
+        self.client.force_login(self.user)
+        assign_perm('tom_targets.view_target', self.user, self.target)
+        self.url = reverse('tom_education:target_detail', kwargs={'pk': self.target.pk})
+
+    def test_selection_buttons(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'Select all', response.content)
+        self.assertIn(b'Select reduced', response.content)
+        self.assertIn(b'Deselect all', response.content)
+
+
+class TimelapseTestCase(DataProductTestCase):
+    def setUp(self):
+        super().setUp()
+        self.user = User.objects.create_user(username='test', email='test@example.com')
+        self.client.force_login(self.user)
+        assign_perm('tom_targets.view_target', self.user, self.target)
 
     def create_timelapse_dataproduct(self, products, **kwargs):
         tldp = TimelapseDataProduct.objects.create(
@@ -376,9 +398,6 @@ class TimelapseTestCase(TomEducationTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('dataproducts_form', response.context)
         self.assertIsInstance(response.context['dataproducts_form'], DataProductActionForm)
-
-        self.assertIn(b'Select all', response.content)
-        self.assertIn(b'Select reduced', response.content)
 
         pre_tldp_count = TimelapseDataProduct.objects.count()
         pre_tlproc_count = TimelapseProcess.objects.count()
@@ -950,7 +969,7 @@ class PipelineTestCase(TomEducationTestCase):
     def test_view(self):
         proc_with_target = FakePipeline.objects.create(identifier='someprocess', target=self.target)
         url = reverse('tom_education:pipeline_detail', kwargs={'pk': proc_with_target.pk})
-        target_url = reverse('tom_targets:detail', kwargs={'pk': self.target.pk})
+        target_url = reverse('tom_education:target_detail', kwargs={'pk': self.target.pk})
         response = self.client.get(url)
         self.assertIn('target_url', response.context)
         self.assertEqual(response.context['target_url'], target_url)
