@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 import json
+import os.path
 from typing import Iterable
 
 from django.contrib import messages
@@ -183,6 +184,18 @@ class ActionableTargetDetailView(FormMixin, TargetDetailView):
         tl_process = TimelapseProcess.objects.create(
             identifier=tl_prod.get_filename(), timelapse_product=tl_prod, target=target
         )
+        # Rough filename heuristic to check if input products are all FITS
+        # files, since a timelapse cannot be created otherwise
+        for prod in products:
+            if 'fits' not in prod.data.name:
+                tl_process.status = ASYNC_STATUS_FAILED
+                tl_process.failure_message = (
+                    "'{}' does not look like a FITS file: aborting"
+                    .format(os.path.basename(prod.data.name))
+                )
+                tl_process.save()
+                return JsonResponse({'ok': False}, status=400)
+
         send_task(make_timelapse, tl_process)
         return JsonResponse({'ok': True})
 

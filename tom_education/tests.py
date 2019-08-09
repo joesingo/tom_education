@@ -700,6 +700,22 @@ class TimelapseTestCase(DataProductTestCase):
             filename = prod.get_file_name()
             self.assertNotIn(filename, response.content.decode(), filename)
 
+    def test_non_fits_file(self):
+        new_dp = DataProduct.objects.create(product_id='notafitsfile', target=self.target)
+        new_dp.data.save('hello.png', File(BytesIO()))
+        url = reverse('tom_education:target_detail', kwargs={'pk': self.target.pk})
+        response = self.client.post(url, {
+            'action': 'create_timelapse',
+            'test0': 'on',
+            'notafitsfile': 'on',
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(), {'ok': False})
+        # Status and error message of TimelapseProcess should be set
+        proc = TimelapseProcess.objects.first()
+        self.assertEqual(proc.status, ASYNC_STATUS_FAILED)
+        self.assertIn('hello.png', proc.failure_message)
+
 
 class GalleryTestCase(TomEducationTestCase):
     def setUp(self):

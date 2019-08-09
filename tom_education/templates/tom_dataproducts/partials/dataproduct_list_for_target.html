@@ -75,14 +75,7 @@
     {% for product in products %}
       <tr>
         {# Show checkbox for performing action on this product #}
-        <td>
-          {%  if 'fits' in product.get_file_name or product.tag == 'fits_file' %}
-            {% dataproduct_checkbox product %}
-          {# TODO: remove this 'psx' bit, as it is just for debugging astrosource #}
-          {% elif 'psx' in product.get_file_name %}
-            {% dataproduct_checkbox product %}
-          {% endif %}
-        </td>
+        <td>{% dataproduct_checkbox product %}</td>
 
         {% if not product.featured %}
         <td><a href="{% url 'tom_dataproducts:feature' pk=product.id %}?target_id={{ target.id }}" title="Make Featured Image" class="btn btn-primary">Feature</a></td>

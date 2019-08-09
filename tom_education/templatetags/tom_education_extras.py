@@ -7,7 +7,7 @@ register = template.Library()
 
 @register.inclusion_tag('tom_education/dataproduct_checkbox.html')
 def dataproduct_checkbox(product):
-    is_reduced = not product.data.name.endswith(RAW_FILE_EXTENSION)
+    is_reduced = 'fits' in product.data.name and not product.data.name.endswith(RAW_FILE_EXTENSION)
     return {
         'product': product,
         'reduced': is_reduced,
