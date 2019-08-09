@@ -80,16 +80,11 @@ def write_fits_image_file(data, date=None):
     hdul.writeto(buf)
     return buf
 
-@override_settings(REST_FRAMEWORK={})  # Remove throttling
-class TomEducationTestCase(TestCase):
-    """
-    Base class for tom_education tests
-    """
 
 @override_settings(TOM_FACILITY_CLASSES=FAKE_FACILITIES)
 @patch('tom_education.models.ObservationTemplate.get_identifier_field', return_value='test_input')
 @patch('tom_education.views.TemplatedObservationCreateView.supported_facilities', ('TemplateFake',))
-class ObservationTemplateTestCase(TomEducationTestCase):
+class ObservationTemplateTestCase(TestCase):
     facility = 'TemplateFake'
 
     @classmethod
@@ -249,7 +244,7 @@ class ObservationTemplateTestCase(TomEducationTestCase):
 
 
 @override_settings(TOM_FACILITY_CLASSES=['tom_observations.tests.utils.FakeFacility'])
-class TimelapseTestCase(TomEducationTestCase):
+class TimelapseTestCase(TestCase):
     def setUp(self):
         super().setUp()
         self.user = User.objects.create_user(username='test', email='test@example.com')
@@ -580,7 +575,7 @@ class TimelapseTestCase(TomEducationTestCase):
             self.assertNotIn(filename, response.content.decode(), filename)
 
 
-class GalleryTestCase(TomEducationTestCase):
+class GalleryTestCase(TestCase):
     def setUp(self):
         super().setUpClass()
         self.url = reverse('tom_education:gallery')
@@ -650,7 +645,7 @@ class GalleryTestCase(TomEducationTestCase):
         self.assertEqual(str(messages[0]), 'Added 2 data products to group \'mygroup\'')
 
 
-class AsyncProcessTestCase(TomEducationTestCase):
+class AsyncProcessTestCase(TestCase):
     @patch('tom_education.models.async_process.datetime')
     def test_terminal_timestamp(self, dt_mock):
         somedate = datetime(
@@ -667,7 +662,7 @@ class AsyncProcessTestCase(TomEducationTestCase):
         self.assertEqual(proc.terminal_timestamp, somedate)
 
 
-class AsyncStatusApiTestCase(TomEducationTestCase):
+class AsyncStatusApiTestCase(TestCase):
     @patch('django.utils.timezone.now')
     @patch('tom_education.models.async_process.datetime')
     @patch('tom_education.views.datetime')
@@ -800,7 +795,7 @@ class FakePipelineBadFlags(FakePipeline):
         proxy = True
 
 
-class PipelineTestCase(TomEducationTestCase):
+class PipelineTestCase(TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -1054,7 +1049,7 @@ class PipelineTestCase(TomEducationTestCase):
         PipelineProcess.validate_flags(FakePipelineWithFlags.flags)
 
 
-class TargetDetailApiTestCase(TomEducationTestCase):
+class TargetDetailApiTestCase(TestCase):
     def setUp(self):
         super().setUp()
         now = datetime.now().timestamp()
@@ -1165,7 +1160,8 @@ class TargetDetailApiTestCase(TomEducationTestCase):
 @override_settings(TOM_FACILITY_CLASSES=FAKE_FACILITIES)
 @patch('tom_education.models.ObservationTemplate.get_identifier_field', return_value='test_input')
 @patch('tom_education.views.TemplatedObservationCreateView.supported_facilities', ('TemplateFake',))
-class ObservationAlertApiTestCase(TomEducationTestCase):
+@patch('tom_education.views.ObservationAlertApiCreateView.throttle_scope', '')
+class ObservationAlertApiTestCase(TestCase):
     def setUp(self):
         super().setUp()
         self.target = Target.objects.create(identifier='target123', name='my target')
@@ -1282,7 +1278,7 @@ class ObservationAlertApiTestCase(TomEducationTestCase):
 @patch('tom_education.tests.FakeTemplateFacility.save_data_products')
 @patch('tom_education.models.TimelapseDataProduct.write', new=lambda s: None)
 @override_settings(TOM_EDUCATION_FROM_EMAIL_ADDRESS='tom@toolkit.edu')
-class ProcessObservationAlertsTestCase(TomEducationTestCase):
+class ProcessObservationAlertsTestCase(TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
