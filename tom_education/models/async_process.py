@@ -37,7 +37,7 @@ class AsyncProcess(models.Model):
         self.full_clean()
         super().save(*args, **kwargs)
 
-    def run():
+    def run(self):
         """
         Perform the potentially long-running task. Should raise AsyncError with
         an appropriate error message on failure.
