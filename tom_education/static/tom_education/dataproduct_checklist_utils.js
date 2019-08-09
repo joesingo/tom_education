@@ -12,3 +12,14 @@ function selectAllProducts(reduced_only) {
     }
     $(selector).prop('checked', true);
 }
+
+function selectGroup() {
+    deselectAllProducts();
+    var selector = PRODUCT_CHECKBOXES_SELECTOR;
+    var group_pk = $('#dp-group-select').val();
+    if (!group_pk) {
+        return;
+    }
+    selector += '.dpgroup-' + group_pk;
+    $(selector).prop('checked', true);
+}

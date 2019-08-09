@@ -29,7 +29,7 @@
     {% buttons %}
         {% if pipeline_names %}
             <p>
-                <label for="pipeline-select">Pipeline process</label>
+                <label for="pipeline-select">Pipeline process: </label>
                 <select id="pipeline-select" class="form-control" style="display: inline; width: 10em;">
                     <option value="">----</option>
                     {% for name in pipeline_names %}
@@ -65,7 +65,7 @@
             <input type="hidden" name="pipeline_name" value="" />
         </p>
 
-        <p>{% include "tom_education/dataproduct_selection_buttons.html" %}</p>
+        <p>{% dataproduct_selection_buttons %}</p>
     {% endbuttons %}
   </div>
 
@@ -78,7 +78,7 @@
         <td>
           {%  if 'fits' in product.get_file_name or product.tag == 'fits_file' %}
             {% dataproduct_checkbox product %}
-          {# TODO: remove this debug code #}
+          {# TODO: remove this 'psx' bit, as it is just for debugging astrosource #}
           {% elif 'psx' in product.get_file_name %}
             {% dataproduct_checkbox product %}
           {% endif %}

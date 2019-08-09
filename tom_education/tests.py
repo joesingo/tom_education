@@ -45,6 +45,7 @@ from tom_education.models import (
     TimelapseProcess,
 )
 from tom_education.tasks import make_timelapse
+from tom_education.templatetags.tom_education_extras import dataproduct_selection_buttons
 
 
 class FakeTemplateFacilityForm(FakeFacilityForm):
@@ -327,7 +328,7 @@ class DataProductTestCase(TomEducationTestCase):
                 observation_record=cls.observation_record,
             )
             buf = write_fits_image_file(cls.image_data, date)
-            prod.data.save(product_id, File(buf), save=True)
+            prod.data.save('{}.fits.fz'.format(product_id), File(buf), save=True)
             cls.prods.append(prod)
 
 
@@ -345,6 +346,37 @@ class TargetDetailViewTestCase(DataProductTestCase):
         self.assertIn(b'Select all', response.content)
         self.assertIn(b'Select reduced', response.content)
         self.assertIn(b'Deselect all', response.content)
+
+    def test_data_product_group_selection(self):
+        group1 = DataProductGroup.objects.create(name='First group')
+        group2 = DataProductGroup.objects.create(name='Second group')
+        group3 = DataProductGroup.objects.create(name='Third group')
+        self.prods[0].group.add(group1)
+        self.prods[1].group.add(group1, group2)
+        self.prods[2].group.add(group2)
+        self.prods[0].save()
+        self.prods[1].save()
+        self.prods[2].save()
+
+        # First test the inclusion tag which provides the list of groups for
+        # the page
+        ctx = {'target': self.target}
+        self.assertNotIn('data_product_groups', dataproduct_selection_buttons(ctx, False))
+        button_context = dataproduct_selection_buttons(ctx, True)
+        self.assertIn('data_product_groups', button_context)
+        # Group 3 should not be included, since no DPs for this target are part
+        # of it
+        self.assertEqual(len(button_context['data_product_groups']), 2)
+        self.assertEqual(set(button_context['data_product_groups']), {group1, group2})
+
+        # Test the view and the rendered HTML
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'Select group', response.content)
+        self.assertIn(b'First group', response.content)
+        self.assertIn(b'Second group', response.content)
+        self.assertIn(b'dpgroup-1', response.content)
+        self.assertIn(b'dpgroup-2', response.content)
 
 
 class TimelapseTestCase(DataProductTestCase):

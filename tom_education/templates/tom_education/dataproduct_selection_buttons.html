@@ -1,3 +1,14 @@
+{% if show_group_selection %}
+    <label for="dp-group-select">Group:</label>
+    <select id="dp-group-select" class="form-control" style="display: inline; width: 10em;">
+        <option value="">----</option>
+        {% for group in data_product_groups %}
+            <option value="{{ group.pk }}">{{ group.name }}</option>
+        {% endfor %}
+    </select>
+    <input type="button" class="btn btn-secondary" onclick="selectGroup()" value="Select group" />
+{% endif %}
+
 <input type="button" class="btn btn-secondary" onclick="selectAllProducts()" value="Select all" />
 <input type="button" class="btn btn-secondary" onclick="selectAllProducts(true)" value="Select reduced" />
 <input type="button" class="btn btn-secondary" onclick="deselectAllProducts()" value="Deselect all" />
