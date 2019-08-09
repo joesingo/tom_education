@@ -5,9 +5,9 @@ import dramatiq
 
 import tom_education.models as education_models
 from tom_education.models import (
-    AsyncError, TimelapseDataProduct, TimelapseProcess, ASYNC_STATUS_FAILED,
-    PipelineProcess
+    AsyncError, TimelapseProcess, ASYNC_STATUS_FAILED, PipelineProcess
 )
+
 
 def task(func, **kwargs):
     """
@@ -19,22 +19,21 @@ def task(func, **kwargs):
     func.send = func
     return func
 
+
 @task
-def make_timelapse(tl_prod_pk):
+def make_timelapse(tl_process_pk):
     """
-    Task to create the timelapse for the given TimelapseDataProduct
+    Task to create the timelapse for the given TimelapseProcess
     """
     try:
-        tl_prod = TimelapseDataProduct.objects.get(pk=tl_prod_pk)
-    except TimelapseDataProduct.DoesNotExist:
-        print('warning: could not find TimelapseDataProduct with PK {}'.format(tl_prod_pk),
+        process = TimelapseProcess.objects.get(pk=tl_process_pk)
+    except TimelapseProcess.DoesNotExist:
+        print('warning: could not find TimelapseProcess with PK {}'.format(tl_process_pk),
               file=sys.stderr)
         return
 
-    process = TimelapseProcess.objects.create(
-        identifier=tl_prod.get_filename(), timelapse_product=tl_prod, target=tl_prod.target
-    )
     run_process(process)
+
 
 @task
 def run_pipeline(process_pk, cls_name):

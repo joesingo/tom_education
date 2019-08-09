@@ -3,6 +3,7 @@ from io import BytesIO, StringIO
 import json
 import os
 from unittest.mock import patch
+import tempfile
 
 from astropy.io import fits
 from django import forms
@@ -81,10 +82,53 @@ def write_fits_image_file(data, date=None):
     return buf
 
 
+class TestDataHandler:
+    """
+    Small class to handle creating and deleting temporary directories to use as
+    the `MEDIA_ROOT` setting for data files created during tests.
+
+    Provides a `media_root` property which returns the path to the temp dir.
+    """
+    def __init__(self):
+        self.tmpdir = None
+        self.create()
+
+    def create(self):
+        if not self.tmpdir:
+            self.tmpdir = tempfile.TemporaryDirectory()
+
+    def delete(self):
+        self.tmpdir.cleanup()
+        self.tmpdir = None
+
+    @property
+    def media_root(self):
+        return self.tmpdir.name
+
+
+TEST_DATA_HANDLER = TestDataHandler()
+
+
+@override_settings(MEDIA_ROOT=TEST_DATA_HANDLER.media_root)
+class TomEducationTestCase(TestCase):
+    """
+    Base class for tom_education tests
+    """
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        TEST_DATA_HANDLER.create()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        TEST_DATA_HANDLER.delete()
+
+
 @override_settings(TOM_FACILITY_CLASSES=FAKE_FACILITIES)
 @patch('tom_education.models.ObservationTemplate.get_identifier_field', return_value='test_input')
 @patch('tom_education.views.TemplatedObservationCreateView.supported_facilities', ('TemplateFake',))
-class ObservationTemplateTestCase(TestCase):
+class ObservationTemplateTestCase(TomEducationTestCase):
     facility = 'TemplateFake'
 
     @classmethod
@@ -244,7 +288,7 @@ class ObservationTemplateTestCase(TestCase):
 
 
 @override_settings(TOM_FACILITY_CLASSES=['tom_observations.tests.utils.FakeFacility'])
-class TimelapseTestCase(TestCase):
+class TimelapseTestCase(TomEducationTestCase):
     def setUp(self):
         super().setUp()
         self.user = User.objects.create_user(username='test', email='test@example.com')
@@ -320,9 +364,11 @@ class TimelapseTestCase(TestCase):
         Test the view and form, and check that the timelapse is created
         successfully
         """
-        dt_mock.now.return_value = datetime(
+        d = datetime(
             year=2019, month=1, day=2, hour=3, minute=4, second=5, microsecond=6
         )
+        dt_mock.now.return_value = d
+        dt_mock.fromisoformat.return_value = d
 
         # GET page and check form is in the context
         url = reverse('tom_education:target_detail', kwargs={'pk': self.target.pk})
@@ -335,7 +381,9 @@ class TimelapseTestCase(TestCase):
         self.assertIn(b'Select reduced', response.content)
 
         pre_tldp_count = TimelapseDataProduct.objects.count()
+        pre_tlproc_count = TimelapseProcess.objects.count()
         self.assertEqual(pre_tldp_count, 0)
+        self.assertEqual(pre_tlproc_count, 0)
 
         # POST form
         response2 = self.client.post(url, {
@@ -348,10 +396,13 @@ class TimelapseTestCase(TestCase):
         self.assertEqual(response2.status_code, 200)
         self.assertEqual(response2.json(), {'ok': True})
 
-        # TimelapseDataProduct model should have been created
+        # TimelapseDataProduct and TimelapseProcess should have been created
         post_tldp_count = TimelapseDataProduct.objects.count()
+        post_tlproc_count = TimelapseProcess.objects.count()
         self.assertEqual(post_tldp_count, pre_tldp_count + 1)
+        self.assertEqual(post_tlproc_count, pre_tlproc_count + 1)
         tldp = TimelapseDataProduct.objects.all()[0]
+        proc = TimelapseProcess.objects.all()[0]
 
         # Check the fields are correct
         self.assertEqual(tldp.target, self.target)
@@ -364,6 +415,13 @@ class TimelapseTestCase(TestCase):
         self.assertEqual(set(tldp.frames.all()), {self.prods[0], self.prods[2], self.prods[3]})
         self.assertEqual(tldp.fmt, TIMELAPSE_GIF)
         self.assertEqual(tldp.fps, 16)
+
+        # Check the process looks correct
+        self.assertEqual(proc.timelapse_product, tldp)
+        self.assertEqual(proc.status, ASYNC_STATUS_CREATED)
+
+        # Check the timelapse data
+        self.assert_gif_data(tldp.data.file)
 
     def test_empty_form(self):
         form = DataProductActionForm(target=self.target, data={})
@@ -467,31 +525,48 @@ class TimelapseTestCase(TestCase):
         with self.assertRaises(DateFieldNotFoundError):
             tldp.write()
 
+    @override_settings(TOM_EDUCATION_TIMELAPSE_SETTINGS={'format': TIMELAPSE_GIF, 'fps': 16})
     def test_make_timelapse_wrapper(self):
         tldp = self.create_timelapse_dataproduct(self.prods)
+        process = TimelapseProcess.objects.create(
+            identifier=tldp.get_filename(),
+            target=tldp.target,
+            timelapse_product=tldp
+        )
         # Cause an 'expected' error by patching date field: should get proper
         # failure message
         with patch('tom_education.models.TimelapseDataProduct.FITS_DATE_FIELD', new='hello') as _mock:
-            make_timelapse(tldp)
-            # process should have been created
-            process = TimelapseProcess.objects.filter(
-                identifier=tldp.get_filename(),
-                target=tldp.target,
-                timelapse_product=tldp
-            ).first()
-            self.assertTrue(process is not None)
+            make_timelapse(process.pk)
+            process.refresh_from_db()
             self.assertEqual(process.status, ASYNC_STATUS_FAILED)
             self.assertTrue(isinstance(process.failure_message, str))
             self.assertTrue(process.failure_message.startswith('Could not find observation date'))
 
         # Cause an 'unexpected' error: should get generic failure message
         tldp2 = self.create_timelapse_dataproduct(self.prods)
+        process2 = TimelapseProcess.objects.create(
+            identifier=tldp2.get_filename(),
+            target=tldp2.target,
+            timelapse_product=tldp2
+        )
         with patch('tom_education.models.timelapse.imageio', new='hello') as _mock:
-            make_timelapse(tldp2.pk)
-            process2 = TimelapseProcess.objects.get(identifier=tldp2.get_filename())
+            make_timelapse(process2.pk)
+            process2.refresh_from_db()
             self.assertEqual(process2.status, ASYNC_STATUS_FAILED)
             self.assertTrue(isinstance(process2.failure_message, str))
             self.assertEqual(process2.failure_message, 'An unexpected error occurred')
+
+        # Create a timelapse successfully
+        tldp3 = self.create_timelapse_dataproduct(self.prods)
+        process3 = TimelapseProcess.objects.create(
+            identifier=tldp3.get_filename(),
+            target=tldp3.target,
+            timelapse_product=tldp3
+        )
+        make_timelapse(process3.pk)
+        process3.refresh_from_db()
+        self.assertEqual(process3.status, ASYNC_STATUS_CREATED)
+        self.assert_gif_data(tldp3.data.file)
 
     @override_settings(TOM_EDUCATION_TIMELAPSE_SETTINGS={'format': TIMELAPSE_GIF, 'fps': 16},
                        TOM_EDUCATION_TIMELAPSE_GROUP_NAME='timelapsey')
@@ -575,9 +650,9 @@ class TimelapseTestCase(TestCase):
             self.assertNotIn(filename, response.content.decode(), filename)
 
 
-class GalleryTestCase(TestCase):
+class GalleryTestCase(TomEducationTestCase):
     def setUp(self):
-        super().setUpClass()
+        super().setUp()
         self.url = reverse('tom_education:gallery')
         self.target = Target.objects.create(identifier='target123', name='my target')
         self.prods = []
@@ -645,7 +720,7 @@ class GalleryTestCase(TestCase):
         self.assertEqual(str(messages[0]), 'Added 2 data products to group \'mygroup\'')
 
 
-class AsyncProcessTestCase(TestCase):
+class AsyncProcessTestCase(TomEducationTestCase):
     @patch('tom_education.models.async_process.datetime')
     def test_terminal_timestamp(self, dt_mock):
         somedate = datetime(
@@ -662,7 +737,7 @@ class AsyncProcessTestCase(TestCase):
         self.assertEqual(proc.terminal_timestamp, somedate)
 
 
-class AsyncStatusApiTestCase(TestCase):
+class AsyncStatusApiTestCase(TomEducationTestCase):
     @patch('django.utils.timezone.now')
     @patch('tom_education.models.async_process.datetime')
     @patch('tom_education.views.datetime')
@@ -795,7 +870,7 @@ class FakePipelineBadFlags(FakePipeline):
         proxy = True
 
 
-class PipelineTestCase(TestCase):
+class PipelineTestCase(TomEducationTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -1049,7 +1124,7 @@ class PipelineTestCase(TestCase):
         PipelineProcess.validate_flags(FakePipelineWithFlags.flags)
 
 
-class TargetDetailApiTestCase(TestCase):
+class TargetDetailApiTestCase(TomEducationTestCase):
     def setUp(self):
         super().setUp()
         now = datetime.now().timestamp()
@@ -1161,7 +1236,7 @@ class TargetDetailApiTestCase(TestCase):
 @patch('tom_education.models.ObservationTemplate.get_identifier_field', return_value='test_input')
 @patch('tom_education.views.TemplatedObservationCreateView.supported_facilities', ('TemplateFake',))
 @patch('tom_education.views.ObservationAlertApiCreateView.throttle_scope', '')
-class ObservationAlertApiTestCase(TestCase):
+class ObservationAlertApiTestCase(TomEducationTestCase):
     def setUp(self):
         super().setUp()
         self.target = Target.objects.create(identifier='target123', name='my target')
@@ -1278,7 +1353,7 @@ class ObservationAlertApiTestCase(TestCase):
 @patch('tom_education.tests.FakeTemplateFacility.save_data_products')
 @patch('tom_education.models.TimelapseDataProduct.write', new=lambda s: None)
 @override_settings(TOM_EDUCATION_FROM_EMAIL_ADDRESS='tom@toolkit.edu')
-class ProcessObservationAlertsTestCase(TestCase):
+class ProcessObservationAlertsTestCase(TomEducationTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

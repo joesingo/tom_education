@@ -33,6 +33,7 @@ from tom_education.models import (
     ObservationTemplate,
     PipelineProcess,
     TimelapseDataProduct,
+    TimelapseProcess,
 )
 from tom_education.serializers import (
     AsyncProcessSerializer,
@@ -179,7 +180,10 @@ class ActionableTargetDetailView(FormMixin, TargetDetailView):
     def handle_create_timelapse(self, products, form):
         target = self.get_object()
         tl_prod = TimelapseDataProduct.create_timestamped(target, products)
-        make_timelapse.send(tl_prod.pk)
+        tl_process = TimelapseProcess.objects.create(
+            identifier=tl_prod.get_filename(), timelapse_product=tl_prod, target=target
+        )
+        make_timelapse.send(tl_process.pk)
         return JsonResponse({'ok': True})
 
     def handle_pipeline(self, products, form):
