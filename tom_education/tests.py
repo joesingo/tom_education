@@ -1540,3 +1540,55 @@ class ProcessObservationAlertsTestCase(TomEducationTestCase):
         buf = StringIO()
         call_command('process_observation_alerts', stderr=buf)
         self.assertIn("TOM_EDUCATION_FROM_EMAIL_ADDRESS not set", buf.getvalue())
+
+
+class DataProductDeleteMultipleViewTestCase(DataProductTestCase):
+    def setUp(self):
+        super().setUp()
+        self.user = User.objects.create_user(username='test', email='test@example.com')
+        self.client.force_login(self.user)
+        assign_perm('tom_targets.view_target', self.user, self.target)
+        self.url = reverse('tom_education:target_detail', kwargs={'pk': self.target.pk})
+        self.num_products = DataProduct.objects.count()
+
+    def test_user_not_logged_in(self):
+        self.client.logout()
+        base_url = reverse('tom_education:delete_dataproducts')
+        url = base_url + '?product_pks=' + ','.join(str(prod.pk) for prod in self.prods)
+        response = self.client.get(url)
+        # Should be redirected to login
+        self.assertTrue(response.url.startswith(reverse('login') + '?'))
+        # No DPs should have been deleted
+        self.assertEqual(DataProduct.objects.count(), self.num_products)
+
+        self.client.force_login(self.user)
+
+    def test_confirmation_page(self):
+        base_url = reverse('tom_education:delete_dataproducts')
+        url = base_url + '?product_pks=' + ','.join(str(prod.pk) for prod in self.prods)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        # Check the filenames of the to-be-deleted products are displayed
+        for prod in self.prods:
+            self.assertIn(prod.data.name.encode(), response.content)
+        # 'next' URL should be included in the form
+        self.assertIn(b'<input type="hidden" name="next"', response.content)
+        # Products should not have actually been deleted yet
+        self.assertEqual(DataProduct.objects.count(), self.num_products)
+
+    def test_delete(self):
+        base_url = reverse('tom_education:delete_dataproducts')
+        response = self.client.post(base_url, {
+            'next': 'mycoolwebsite.net',
+            'product_pks': ','.join(map(str, [self.prods[0].pk, self.prods[2].pk]))
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, 'mycoolwebsite.net')
+        self.assertEqual(set(DataProduct.objects.all()), {self.prods[1], self.prods[3]})
+
+        # Success message should be present on next page
+        response2 = self.client.get('/')
+        self.assertIn('messages', response2.context)
+        messages = list(response2.context['messages'])
+        self.assertEqual(len(messages), 1)
+        self.assertEqual(str(messages[0]), 'Deleted 2 data products')

@@ -5,15 +5,16 @@ import os.path
 from typing import Iterable
 
 from django.contrib import messages
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
 from django.db.utils import IntegrityError
 from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseRedirect, Http404
 from django.shortcuts import redirect, reverse
 from django.utils.http import urlencode
-from django.views.generic import FormView
+from django.views.generic import FormView, TemplateView
 from django.views.generic.detail import DetailView
 from django.views.generic.edit import FormMixin
-from tom_dataproducts.models import DataProduct, ObservationRecord
+from tom_dataproducts.models import DataProduct, ObservationRecord, ReducedDatum
 from tom_observations.facility import get_service_class
 from tom_observations.views import ObservationCreateView
 from tom_targets.models import Target
@@ -232,6 +233,12 @@ class ActionableTargetDetailView(FormMixin, TargetDetailView):
         url = base + '?' + urlencode({'product_pks': ",".join(product_pks)})
         return redirect(url)
 
+    def handle_delete(self, products, form):
+        product_pks = [str(p.pk) for p in products]
+        base = reverse('tom_education:delete_dataproducts')
+        url = base + '?' + urlencode({'product_pks': ",".join(product_pks)})
+        return redirect(url)
+
 
 class GalleryView(FormView):
     """
@@ -421,3 +428,28 @@ class ObservationAlertApiCreateView(CreateAPIView):
             observation_id=observation_ids[0]
         )
         alert = ObservationAlert.objects.create(email=data['email'], observation=ob)
+
+
+class DataProductDeleteMultipleView(LoginRequiredMixin, TemplateView):
+    template_name = 'tom_education/dataproduct_confirm_delete_multiple.html'
+
+    def get_products(self, pks_string):
+        pks = pks_string.split(',')
+        return {DataProduct.objects.get(pk=int(pk)) for pk in pks}
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        if self.request.method == 'GET':
+            context['next'] = self.request.META.get('HTTP_REFERER', '/')
+            context['product_pks'] = self.request.GET.get('product_pks', '')
+            context['to_delete'] = self.get_products(context['product_pks'])
+        return context
+
+    def post(self, request, *args, **kwargs):
+        prods = self.get_products(self.request.POST.get('product_pks', []))
+        for prod in prods:
+            ReducedDatum.objects.filter(data_product=prod).delete()
+            prod.data.delete()
+            prod.delete()
+        messages.success(request, 'Deleted {} data products'.format(len(prods)))
+        return HttpResponseRedirect(self.request.POST.get('next', '/'))

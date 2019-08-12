@@ -3,6 +3,7 @@ from django.urls import path
 from tom_education.views import (
     ActionableTargetDetailView,
     AsyncStatusApi,
+    DataProductDeleteMultipleView,
     GalleryView,
     ObservationAlertApiCreateView,
     PipelineProcessApi,
@@ -18,6 +19,7 @@ urlpatterns = [
     path('targets/<int:pk>/', ActionableTargetDetailView.as_view(), name='target_detail'),
     path('pipeline/<pk>', PipelineProcessDetailView.as_view(), name='pipeline_detail'),
     path('gallery/', GalleryView.as_view(), name='gallery'),
+    path('dataproducts/deletemultiple/', DataProductDeleteMultipleView.as_view(), name='delete_dataproducts'),
 
     # API views
     path('api/async/status/<target>/', AsyncStatusApi.as_view(), name='async_process_status_api'),
