@@ -3,6 +3,7 @@ import json
 import tempfile
 from pathlib import Path
 import re
+import os.path
 
 from django.conf import settings
 from django.core.files.base import ContentFile
@@ -11,6 +12,7 @@ from django.utils.module_loading import import_string
 from tom_dataproducts.models import DataProduct, DataProductGroup
 
 from tom_education.models.async_process import AsyncError, AsyncProcess, ASYNC_STATUS_CREATED
+from tom_education.utils import assert_valid_suffix
 
 
 class InvalidPipelineError(Exception):
@@ -22,6 +24,7 @@ class InvalidPipelineError(Exception):
 class PipelineProcess(AsyncProcess):
     short_name = 'pipeline'
     flags = None
+    allowed_suffixes = None
 
     input_files = models.ManyToManyField(DataProduct, related_name='pipeline')
     group = models.ForeignKey(DataProductGroup, null=True, blank=True, on_delete=models.SET_NULL)
@@ -33,6 +36,14 @@ class PipelineProcess(AsyncProcess):
             raise AsyncError('Process must have an associated target')
         if not self.input_files.exists():
             raise AsyncError('No input files to process')
+        # Check file suffixes
+        if self.allowed_suffixes:
+            for prod in self.input_files.all():
+                filename = prod.data.name or ''
+                try:
+                    assert_valid_suffix(os.path.basename(filename), self.allowed_suffixes)
+                except AssertionError as ex:
+                    raise AsyncError(str(ex))
 
         with tempfile.TemporaryDirectory() as tmpdir_name:
             tmpdir = Path(tmpdir_name)

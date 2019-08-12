@@ -38,6 +38,10 @@ class ExamplePipelineProcess(PipelineProcess):
     # Label used as a prefix for names of generated data products
     short_name = 'example'
 
+    # Optional list of suffixes for input files. The process will fail if
+    # trying to run with files that do not end in one of these suffixes.
+    allowed_suffixes = ['.fits', '.fz']
+
     # Make this a proxy: we do not want this to be a concrete model (which
     # would use a separate DB table and require migrations)
     class Meta:

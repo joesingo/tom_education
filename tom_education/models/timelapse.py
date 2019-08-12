@@ -13,6 +13,7 @@ import imageio
 
 from tom_dataproducts.models import DataProduct, IMAGE_FILE
 from tom_education.models.async_process import AsyncError, AsyncProcess, ASYNC_STATUS_CREATED
+from tom_education.utils import assert_valid_suffix
 
 
 TIMELAPSE_GIF = 'gif'
@@ -63,6 +64,10 @@ class TimelapseDataProduct(DataProduct):
         """
         if not self.frames.all().exists():
             raise ValueError('Empty data products list')
+        # Check input files look like FITS data
+        for prod in self.frames.all():
+            assert_valid_suffix(os.path.basename(prod.data.name), ['.fits', '.fz'])
+
         buf = BytesIO()
         self._write(buf)
         self.data.delete(save=False)
@@ -170,7 +175,7 @@ class TimelapseProcess(AsyncProcess):
         # handle
         try:
             self.timelapse_product.write()
-        except DateFieldNotFoundError as ex:
+        except (DateFieldNotFoundError, AssertionError) as ex:
             raise AsyncError(str(ex))
         except ValueError as ex:
             print('warning: ValueError: {}'.format(ex))

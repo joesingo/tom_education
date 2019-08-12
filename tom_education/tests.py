@@ -709,8 +709,6 @@ class TimelapseTestCase(DataProductTestCase):
             'test0': 'on',
             'notafitsfile': 'on',
         })
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.json(), {'ok': False})
         # Status and error message of TimelapseProcess should be set
         proc = TimelapseProcess.objects.first()
         self.assertEqual(proc.status, ASYNC_STATUS_FAILED)
@@ -946,7 +944,7 @@ class PipelineTestCase(TomEducationTestCase):
         cls.prods = [DataProduct.objects.create(product_id=f'test_{i}', target=cls.target)
                      for i in range(4)]
         for prod in cls.prods:
-            fn = f'{prod.product_id}_file'
+            fn = f'{prod.product_id}_file.tar.gz'
             prod.data.save(fn, File(BytesIO()))
 
     def setUp(self):
@@ -1189,6 +1187,24 @@ class PipelineTestCase(TomEducationTestCase):
         # Should not raise an exception
         PipelineProcess.validate_flags(FakePipeline.flags)
         PipelineProcess.validate_flags(FakePipelineWithFlags.flags)
+
+    def test_allowed_suffixes(self):
+        tar_prod = DataProduct.objects.create(product_id='tar_prod', target=self.target)
+        tar_prod.data.save('myarchive.tar', File(BytesIO()))
+
+        proc = FakePipeline.objects.create(identifier='proc', target=self.target)
+        proc.input_files.add(*self.prods, tar_prod)
+        proc.save()
+
+        with patch('tom_education.tests.FakePipeline.allowed_suffixes', ['.tar', '.7z']):
+            with self.assertRaises(AsyncError) as ex_info:
+                proc.run()
+            err_msg = str(ex_info.exception)
+            self.assertIn('_file.tar.gz', err_msg)  # filename of the offending file
+            self.assertIn('.tar, .7z', err_msg)     # allowed suffixes
+
+        with patch('tom_education.tests.FakePipeline.allowed_suffixes', ['.tar', '.tar.gz']):
+            proc.run()
 
 
 class TargetDetailApiTestCase(TomEducationTestCase):
