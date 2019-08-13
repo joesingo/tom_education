@@ -1,6 +1,7 @@
 import json
 
 from crispy_forms.layout import Div
+from dateutil.parser import parse
 from tom_observations.facilities.lco import LCOFacility, LCOObservationForm, make_request, PORTAL_URL
 
 class EducationLCOForm(LCOObservationForm):
@@ -43,3 +44,19 @@ class EducationLCOForm(LCOObservationForm):
 
 class EducationLCOFacility(LCOFacility):
     form = EducationLCOForm
+
+    def data_products(self, observation_id, product_id=None):
+        """
+        Override this method to include reduction level in the dict for each
+        data product
+        """
+        products = []
+        for frame in self._archive_frames(observation_id, product_id):
+            products.append({
+                'id': frame['id'],
+                'filename': frame['filename'],
+                'created': parse(frame['DATE_OBS']),
+                'url': frame['url'],
+                'reduced': frame['RLEVEL'] == 91
+            })
+        return products
