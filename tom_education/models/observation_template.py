@@ -48,7 +48,7 @@ class ObservationTemplate(models.Model):
         instantiated templates
         """
         if facility == 'LCO':
-            return 'group_id'
+            return 'name'
         raise NotImplementedError
 
     @staticmethod
