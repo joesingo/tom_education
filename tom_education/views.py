@@ -54,6 +54,14 @@ class TemplatedObservationCreateView(ObservationCreateView):
     def get_form_class(self):
         return make_templated_form(super().get_form_class())
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Get extra context data from the form object, if applicable
+        form = context['form']
+        if hasattr(form, 'get_extra_context'):
+            context.update(form.get_extra_context())
+        return context
+
     def serialize_fields(self, form):
         return json.dumps(form.cleaned_data)
 

@@ -27,6 +27,7 @@ from tom_observations.tests.factories import ObservingRecordFactory
 from tom_observations.tests.utils import FakeFacility, FakeFacilityForm
 
 from tom_education.forms import DataProductActionForm, GalleryForm
+from tom_education.facilities import EducationLCOForm
 from tom_education.models import (
     ASYNC_STATUS_CREATED,
     ASYNC_STATUS_FAILED,
@@ -53,6 +54,9 @@ class FakeTemplateFacilityForm(FakeFacilityForm):
     # the identifier
     extra_field = forms.CharField()
     another_extra_field = forms.IntegerField()
+
+    def get_extra_context(self):
+        return {'extra_variable_from_form': 'hello'}
 
 
 class FakeTemplateFacility(FakeFacility):
@@ -286,6 +290,10 @@ class ObservationTemplateTestCase(TomEducationTestCase):
         self.assertEqual(initial['test_input'], 'mytemplate-2019-01-02-030405')
         self.assertEqual(initial['extra_field'], 'someextravalue')
         self.assertEqual(initial['another_extra_field'], 5)
+
+    def test_extra_form_context(self, mock):
+        response = self.client.get(self.get_url(self.target))
+        self.assertIn('extra_variable_from_form', response.context)
 
 
 @override_settings(TOM_FACILITY_CLASSES=['tom_observations.tests.utils.FakeFacility'])
@@ -1592,3 +1600,40 @@ class DataProductDeleteMultipleViewTestCase(DataProductTestCase):
         messages = list(response2.context['messages'])
         self.assertEqual(len(messages), 1)
         self.assertEqual(str(messages[0]), 'Deleted 2 data products')
+
+
+class EducationLCOFacilityTestCase(TomEducationTestCase):
+    def test_instrument_filter_info(self):
+        class MockResponse:
+            def json(self):
+                return {
+                    'instr1': {
+                        'optical_elements': {
+                            'filters': [
+                                {'code': 'a1', 'schedulable': False},
+                                {'code': 'a2', 'schedulable': True},
+                            ],
+                            'slits': [
+                                {'code': 'a3', 'schedulable': True},
+                            ]
+                        }
+                    },
+                    'instr2': {
+                        'optical_elements': {
+                            'slits': [
+                                {'code': 'b1', 'schedulable': True},
+                            ]
+                        }
+                    }
+                }
+        def mock_make_request(*args, **kwargs):
+            return MockResponse()
+
+        with patch('tom_education.facilities.make_request', mock_make_request):
+            form = EducationLCOForm()
+            self.assertEqual((form.get_extra_context()), {
+                'instrument_filters': json.dumps({
+                    'instr1': ['a2', 'a3'],
+                    'instr2': ['b1'],
+                })
+            })
