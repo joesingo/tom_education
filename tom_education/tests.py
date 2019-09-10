@@ -34,6 +34,7 @@ from tom_education.models import (
     ASYNC_STATUS_PENDING,
     AsyncError,
     AsyncProcess,
+    crop_image,
     DateFieldNotFoundError,
     InvalidPipelineError,
     ObservationAlert,
@@ -302,6 +303,9 @@ class DataProductTestCase(TomEducationTestCase):
     Class providing a setUpClass method which creates a target, observation
     record and several FITS data products
     """
+    # Shape for dummy FITS files created in setUpClass
+    test_fits_shape = (500, 50)
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -325,8 +329,8 @@ class DataProductTestCase(TomEducationTestCase):
         # Create dummy image data. Make sure data is not constant to avoid
         # warnings from fits2image
         # TODO: consider using real fits files here...
-        cls.image_data = np.ones((500, 4), dtype=np.float)
-        cls.image_data[20, :] = np.array([10, 20, 30, 40])
+        cls.image_data = np.ones(cls.test_fits_shape, dtype=np.float)
+        cls.image_data[20, :] = np.linspace(1, 100, num=50)
 
         for i, date in enumerate(dates):
             product_id = 'test{}'.format(i)
@@ -387,6 +391,10 @@ class TargetDetailViewTestCase(DataProductTestCase):
         self.assertIn(b'dpgroup-2', response.content)
 
 
+@override_settings(TOM_EDUCATION_TIMELAPSE_SETTINGS={
+    'format': 'gif', 'fps': 10, 'size': 500, 'normalise_background': False,
+    'crop': {'scale': None, 'enabled': False}
+})
 class TimelapseTestCase(DataProductTestCase):
     def setUp(self):
         super().setUp()
@@ -599,7 +607,7 @@ class TimelapseTestCase(DataProductTestCase):
             process.refresh_from_db()
             self.assertEqual(process.status, ASYNC_STATUS_FAILED)
             self.assertTrue(isinstance(process.failure_message, str))
-            self.assertTrue(process.failure_message.startswith('Could not find observation date'))
+            self.assertIn('could not find observation date', process.failure_message)
 
         # Cause an 'unexpected' error: should get generic failure message
         tldp2 = self.create_timelapse_dataproduct(self.prods)
@@ -722,7 +730,7 @@ class TimelapseTestCase(DataProductTestCase):
         self.assertEqual(proc.status, ASYNC_STATUS_FAILED)
         self.assertIn('hello.png', proc.failure_message)
 
-    @patch('tom_education.models.timelapse.TimelapseDataProduct.normalise_background')
+    @patch('tom_education.models.timelapse.normalise_background')
     def test_background_normalisation(self, norm_mock):
         tldp = self.create_timelapse_dataproduct(self.prods)
 
@@ -738,6 +746,60 @@ class TimelapseTestCase(DataProductTestCase):
             buf = BytesIO()
             tldp._write(buf)
             self.assertEqual(norm_mock.call_count, len(self.prods))
+
+    def test_timelapse_cropping(self):
+        tldp = self.create_timelapse_dataproduct(self.prods)
+
+        with self.settings(TOM_EDUCATION_TIMELAPSE_SETTINGS={'crop': {'enabled': True, 'scale': 0.8}}):
+            buf = BytesIO()
+            tldp._write(buf)
+            buf.seek(0)
+            frames = imageio.mimread(buf)
+            # Check all frames are the same shape
+            shape = frames[0].shape
+            self.assertTrue(all(f.shape == shape for f in frames[1:]))
+            # Check the shape is as expected
+            self.assertEqual(
+                shape,
+                (int(0.8 * self.test_fits_shape[0]), int(0.8 * self.test_fits_shape[1]))
+            )
+
+        # Repeat of the above test but with cropping disabled: the shape of the
+        # output frames should be identical to the shape of the inputs
+        with self.settings(TOM_EDUCATION_TIMELAPSE_SETTINGS={'crop': {'enabled': False, 'scale': 'blah'}}):
+            buf = BytesIO()
+            tldp._write(buf)
+            buf.seek(0)
+            frames = imageio.mimread(buf)
+            shape = frames[0].shape
+            self.assertTrue(all(f.shape == shape for f in frames[1:]))
+            self.assertEqual(shape, self.test_fits_shape)
+
+    def test_cropping(self):
+        K = 0.5
+        data = np.array([
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, K, K, K, K, 0, 0, 0],
+            [0, 0, 0, K, K, K, K, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        ], dtype=np.float)
+        buf = write_fits_image_file(data)
+        buf.seek(0)
+        hdul = fits.open(buf)
+        # For some reason (float errors?) the non-zero values are changed after
+        # saving and reloading the FITS file. Get the 'new' K to compare the
+        # cropped image with
+        K2 = np.max(hdul[1].data)
+
+        crop_image(hdul, scale=0.5)
+
+        cropped = hdul[1].data
+        # Note that size of cropped image is not exactly half; it is off by one
+        # due to rounding
+        self.assertEqual(cropped.shape, (2, 4))
+        self.assertTrue(np.all(cropped == np.full((2, 4), K2)), cropped)
 
 
 class GalleryTestCase(TomEducationTestCase):

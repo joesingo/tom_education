@@ -14,6 +14,12 @@ TOM_EDUCATION_TIMELAPSE_SETTINGS = {
     # If True, process each frame to achieve a consistent background brightness
     # across the timelapse
     'normalise_background': False,
+    # Optionally crop each frame in the timelapse around its centre pixel. The
+    # dimensions of the frame are scaled by `scale`
+    'crop': {
+        'scale': 0.5,
+        'enabled': False
+    },
 }
 ```
 
@@ -23,6 +29,9 @@ files is maintained.
 The `normalise_background` setting prevent the 'flickering' that can occur when
 there are differences in the background brightness across the input files, but
 significantly increases processing time. Is is disabled by default.
+
+The `crop` setting can be used to 'zoom in' on the target in the centre of each
+frame of the timelapse.
 
 ## Management Command
 

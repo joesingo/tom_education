@@ -29,12 +29,6 @@ class DateFieldNotFoundError(Exception):
     """
 
 
-class NoDataError(Exception):
-    """
-    No data was found in a FITS file
-    """
-
-
 class TimelapseDataProduct(DataProduct):
     """
     A timelapse data product created from other data products
@@ -117,14 +111,29 @@ class TimelapseDataProduct(DataProduct):
                 for i, product in enumerate(self.sorted_frames()):
                     fits_path = product.data.path
 
+                    # Determine which modifiers to apply to the frame (if any).
+                    # A modifier is a function that takes a HDUList as an
+                    # argument and modifies it in some way
+                    modifiers = []
+                    crop_settings = tl_settings.get('crop')
+                    if crop_settings and crop_settings.get('enabled'):
+                        scale = crop_settings.get('scale', 0.5)
+                        modifiers.append(lambda hdul: crop_image(hdul, scale))
+
                     if tl_settings.get('normalise_background'):
+                        modifiers.append(normalise_background)
+
+                    if modifiers:
                         hdul = fits.open(fits_path)
-                        try:
-                            self.normalise_background(hdul)
-                        except NoDataError:  # Re-raise to add filename in error message
-                            raise NoDataError(
-                                "No FITS data found in file '{}'".format(product.data.name)
-                            )
+
+                        for mod in modifiers:
+                            try:
+                                mod(hdul)
+                            except ValueError as ex:  # Re-raise to add filename in error message
+                                raise ValueError(
+                                    "Error in file '{}': {}".format(product.data.name, ex)
+                                )
+
                         fits_path = os.path.join(tmpdir, 'tmp.fits')
                         with open(fits_path, 'wb') as f:
                             hdul.writeto(f)
@@ -135,31 +144,6 @@ class TimelapseDataProduct(DataProduct):
                     jpg_path = os.path.join(tmpdir, 'frame_{}.jpg'.format(i))
                     fits_to_jpg(fits_path, jpg_path, width=image_size, height=image_size)
                     writer.append_data(imageio.imread(jpg_path))
-
-    def normalise_background(self, hdul):
-        """
-        Perform processing on the given HDUList to normalise the background
-        brightness
-        """
-        # Find the data HDU
-        idx = None
-        data = None
-        for i, hdu in enumerate(hdul):
-            if hdu.data is not None and hdu.data.ndim == 2:
-                data = hdu.data
-                idx = i
-                break
-        if data is None:
-            raise NoDataError
-
-        # Remove negative values and cosmic rays
-        # TODO: get parameters for detect_cosmics and sigma_clip from settings
-        _, imdata = detect_cosmics(
-            data.clip(0, None), sigclip=3, sigfrac=0.05, objlim=1
-        )
-        # Perform sigma clipping to normalise background brightness
-        clipped = astropy.stats.sigma_clip(imdata, sigma=3, maxiters=10)
-        data -= clipped.filled(0)
 
     def sorted_frames(self):
         """
@@ -174,8 +158,8 @@ class TimelapseDataProduct(DataProduct):
                     continue
                 return datetime.fromisoformat(dt_str)
             raise DateFieldNotFoundError(
-                'Could not find observation date in FITS header \'{}\' in file \'{}\''
-                .format(self.FITS_DATE_FIELD, product.data.name)
+                "Error in file '{}': could not find observation date in FITS header '{}'"
+                .format(product.data.name, self.FITS_DATE_FIELD)
             )
 
         return sorted(self.frames.all(), key=sort_key)
@@ -210,6 +194,7 @@ class TimelapseDataProduct(DataProduct):
     def get_settings(cls):
         return getattr(settings, 'TOM_EDUCATION_TIMELAPSE_SETTINGS', {})
 
+
 class TimelapseProcess(AsyncProcess):
     """
     Asynchronous process that calls the write() method on a
@@ -222,10 +207,59 @@ class TimelapseProcess(AsyncProcess):
         # handle
         try:
             self.timelapse_product.write()
-        except (DateFieldNotFoundError, AssertionError, NoDataError) as ex:
+        except (DateFieldNotFoundError, AssertionError) as ex:
             raise AsyncError(str(ex))
         except ValueError as ex:
             print('warning: ValueError: {}'.format(ex))
             raise AsyncError('Invalid parameters. Are all images the same size?')
         self.status = ASYNC_STATUS_CREATED
         self.save()
+
+
+def get_data_index(hdul):
+    """
+    Get the index of the data HDU in the given HDUList, and return (i, data).
+    Raises ValueError if no data HDU is found
+    """
+    for i, hdu in enumerate(hdul):
+        if hdu.data is not None and hdu.data.ndim == 2:
+            return (i, hdu.data)
+    raise ValueError('no data HDU found')
+
+
+def normalise_background(hdul):
+    """
+    Normalise the background brightness level across the data HDU in the given
+    HDUList
+    """
+    idx, data = get_data_index(hdul)
+
+    # Remove negative values and cosmic rays
+    # TODO: get parameters for detect_cosmics and sigma_clip from settings
+    _, imdata = detect_cosmics(
+        data.clip(0, None), sigclip=3, sigfrac=0.05, objlim=1
+    )
+    # Perform sigma clipping to normalise background brightness
+    clipped = astropy.stats.sigma_clip(imdata, sigma=3, maxiters=10)
+    data -= clipped.filled(0)
+
+
+def crop_image(hdul, scale):
+    """
+    Crop the image in the given HDUList around the centre point. If the
+    original size is (W, H), the cropped size will be (scale * W, scale * H).
+    """
+    if scale < 0 or scale > 1:
+        raise ValueError("scale must be in [0, 1]")
+    idx, data = get_data_index(hdul)
+    h, w = data.shape
+    half_h = int(h * 0.5 * scale)
+    half_w = int(w * 0.5 * scale)
+
+    mid_y = int(h / 2)
+    mid_x = int(w / 2)
+
+    hdul[idx].data = data[mid_y - half_h:mid_y + half_h, mid_x - half_w:mid_x + half_w]
+    new_h, new_w = hdul[idx].data.shape
+    hdul[idx].header['NAXIS1'] = new_w
+    hdul[idx].header['NAXIS2'] = new_h
