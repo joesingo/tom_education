@@ -722,6 +722,23 @@ class TimelapseTestCase(DataProductTestCase):
         self.assertEqual(proc.status, ASYNC_STATUS_FAILED)
         self.assertIn('hello.png', proc.failure_message)
 
+    @patch('tom_education.models.timelapse.TimelapseDataProduct.normalise_background')
+    def test_background_normalisation(self, norm_mock):
+        tldp = self.create_timelapse_dataproduct(self.prods)
+
+        # With processing, the normalisation method should be called for each
+        # frame
+        with self.settings(TOM_EDUCATION_TIMELAPSE_SETTINGS={'normalise_background': True}):
+            buf = BytesIO()
+            tldp._write(buf)
+            self.assertEqual(norm_mock.call_count, len(self.prods))
+
+        # With processing disabled, it shouldn't be called any more times
+        with self.settings(TOM_EDUCATION_TIMELAPSE_SETTINGS={'normalise_background': False}):
+            buf = BytesIO()
+            tldp._write(buf)
+            self.assertEqual(norm_mock.call_count, len(self.prods))
+
 
 class GalleryTestCase(TomEducationTestCase):
     def setUp(self):

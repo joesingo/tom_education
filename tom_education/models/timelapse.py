@@ -3,7 +3,9 @@ from io import BytesIO
 import os.path
 import tempfile
 
+from astroscrappy import detect_cosmics
 from astropy.io import fits
+import astropy.stats
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.files import File
@@ -24,6 +26,12 @@ TIMELAPSE_WEBM = 'webm'
 class DateFieldNotFoundError(Exception):
     """
     The FITS header to obtain observation date was not found
+    """
+
+
+class NoDataError(Exception):
+    """
+    No data was found in a FITS file
     """
 
 
@@ -107,12 +115,51 @@ class TimelapseDataProduct(DataProduct):
         with tempfile.TemporaryDirectory() as tmpdir:
             with imageio.get_writer(outfile, **writer_kwargs) as writer:
                 for i, product in enumerate(self.sorted_frames()):
+                    fits_path = product.data.path
+
+                    if tl_settings.get('normalise_background'):
+                        hdul = fits.open(fits_path)
+                        try:
+                            self.normalise_background(hdul)
+                        except NoDataError:  # Re-raise to add filename in error message
+                            raise NoDataError(
+                                "No FITS data found in file '{}'".format(product.data.name)
+                            )
+                        fits_path = os.path.join(tmpdir, 'tmp.fits')
+                        with open(fits_path, 'wb') as f:
+                            hdul.writeto(f)
+
                     # Note: imageio supports loading FITS files, but does not
                     # choose brightness levels intelligently. Use fits_to_jpg
-                    # instead to go FITS -> JPG -> GIF
-                    tmpfile = os.path.join(tmpdir, 'frame_{}.jpg'.format(i))
-                    fits_to_jpg(product.data.path, tmpfile, width=image_size, height=image_size)
-                    writer.append_data(imageio.imread(tmpfile))
+                    # instead to go FITS -> JPG -> timelapse
+                    jpg_path = os.path.join(tmpdir, 'frame_{}.jpg'.format(i))
+                    fits_to_jpg(fits_path, jpg_path, width=image_size, height=image_size)
+                    writer.append_data(imageio.imread(jpg_path))
+
+    def normalise_background(self, hdul):
+        """
+        Perform processing on the given HDUList to normalise the background
+        brightness
+        """
+        # Find the data HDU
+        idx = None
+        data = None
+        for i, hdu in enumerate(hdul):
+            if hdu.data is not None and hdu.data.ndim == 2:
+                data = hdu.data
+                idx = i
+                break
+        if data is None:
+            raise NoDataError
+
+        # Remove negative values and cosmic rays
+        # TODO: get parameters for detect_cosmics and sigma_clip from settings
+        _, imdata = detect_cosmics(
+            data.clip(0, None), sigclip=3, sigfrac=0.05, objlim=1
+        )
+        # Perform sigma clipping to normalise background brightness
+        clipped = astropy.stats.sigma_clip(imdata, sigma=3, maxiters=10)
+        data -= clipped.filled(0)
 
     def sorted_frames(self):
         """
@@ -175,7 +222,7 @@ class TimelapseProcess(AsyncProcess):
         # handle
         try:
             self.timelapse_product.write()
-        except (DateFieldNotFoundError, AssertionError) as ex:
+        except (DateFieldNotFoundError, AssertionError, NoDataError) as ex:
             raise AsyncError(str(ex))
         except ValueError as ex:
             print('warning: ValueError: {}'.format(ex))

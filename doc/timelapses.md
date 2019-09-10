@@ -8,14 +8,21 @@ Options can be configured with `TOM_EDUCATION_TIMELAPSE_SETTINGS` in
 
 ```python
 TOM_EDUCATION_TIMELAPSE_SETTINGS = {
-    'format': 'webm',
+    'format': 'webm',  # Choose from 'gif', 'mp4' or 'webm'
     'fps': 15,
     'size': 500
+    # If True, process each frame to achieve a consistent background brightness
+    # across the timelapse
+    'normalise_background': False,
 }
 ```
 
 Here 'size' is the maximum width/height to use. The aspect ratio of the input
 files is maintained.
+
+The `normalise_background` setting prevent the 'flickering' that can occur when
+there are differences in the background brightness across the input files, but
+significantly increases processing time. Is is disabled by default.
 
 ## Management Command
 

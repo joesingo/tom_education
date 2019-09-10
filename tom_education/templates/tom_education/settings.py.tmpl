@@ -232,9 +232,12 @@ TOM_FACILITY_CLASSES = [
 ]
 
 TOM_EDUCATION_TIMELAPSE_SETTINGS = {
-    'format': 'gif',
+    'format': 'gif',  # Choose from 'gif', 'mp4' or 'webm'
     'fps': 10,
     'size': 500,
+    # If True, process each frame to achieve a consistent background brightness
+    # across the timelapse
+    'normalise_background': False,
 }
 
 TOM_EDUCATION_TIMELAPSE_GROUP_NAME = '{{ timelapse_group_name }}'
