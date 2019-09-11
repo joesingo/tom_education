@@ -62,12 +62,14 @@ class FakeTemplateFacilityForm(FakeFacilityForm):
 
 class FakeTemplateFacility(FakeFacility):
     name = 'TemplateFake'
-    form = FakeTemplateFacilityForm
+    def get_form(self, *args):
+        return FakeTemplateFacilityForm
 
 
 class AnotherFakeFacility(FakeFacility):
     name = 'AnotherFake'
-    form = FakeTemplateFacilityForm
+    def get_form(self, *args):
+        return FakeTemplateFacilityForm
 
 
 FAKE_FACILITIES = [
@@ -211,6 +213,7 @@ class ObservationTemplateTestCase(TomEducationTestCase):
             'another_extra_field': 4,
             'target_id': self.target.pk,
             'facility': self.facility,
+            'observation_type': '',
         }
         post_params = dict(fields, **{
             'create-template': 'yes please'
@@ -1447,6 +1450,7 @@ class ObservationAlertApiTestCase(TomEducationTestCase):
             'test_input': 'mytemplate-2019-01-02-030405',
             'extra_field': 'hello',
             'another_extra_field': 17,
+            'observation_type': '',
         })
 
         self.assertEqual(alert.observation, ob)

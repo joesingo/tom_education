@@ -419,7 +419,7 @@ class ObservationAlertApiCreateView(CreateAPIView):
         id_field = ObservationTemplate.get_identifier_field(facility_class.name)
         form_data[id_field] = template.get_identifier()
         form_data.update(data.get('overrides', {}))
-        form = facility_class.form(form_data)
+        form = facility_class.get_form(None)(form_data)  # observation type is not relevant to us
         if not form.is_valid():
             raise serializers.ValidationError(form.errors)
 

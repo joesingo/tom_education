@@ -2,9 +2,9 @@ import json
 
 from crispy_forms.layout import Div
 from dateutil.parser import parse
-from tom_observations.facilities.lco import LCOFacility, LCOObservationForm, make_request, PORTAL_URL
+from tom_observations.facilities.lco import LCOFacility, LCOImagingObservationForm, make_request, PORTAL_URL
 
-class EducationLCOForm(LCOObservationForm):
+class EducationLCOForm(LCOImagingObservationForm):
     def get_extra_context(self):
         """
         Provide extra context to the view using this form.
@@ -32,7 +32,7 @@ class EducationLCOForm(LCOObservationForm):
         """
         return Div(
             Div(
-                'name', 'proposal', 'ipp_value', 'observation_type', 'start', 'end',
+                'name', 'proposal', 'ipp_value', 'observation_mode', 'start', 'end',
                 css_class='col'
             ),
             Div(
@@ -43,7 +43,8 @@ class EducationLCOForm(LCOObservationForm):
         )
 
 class EducationLCOFacility(LCOFacility):
-    form = EducationLCOForm
+    def get_form(self, *args):
+        return EducationLCOForm
 
     def data_products(self, observation_id, product_id=None):
         """
