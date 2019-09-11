@@ -3,8 +3,8 @@ $(document).ready(function() {
     var instrument_filters = JSON.parse(json_string).instrument_filters;
 
     var $instrument_type_dropown = $('#id_instrument_type');
-    var $filter_dropown = $('#id_filter');
-    var $filter_options = $filter_dropown.find('option');
+    var $filter_dropdown = $('#id_filter');
+    var $filter_options = $filter_dropdown.find('option');
 
     $instrument_type_dropown.on('change', function() {
         // Get instrument code and available filters
@@ -14,6 +14,7 @@ $(document).ready(function() {
         // Loop through filter <option> elements, and hide filters that are
         // not available
         var first_available_code = null;
+        var original_filter = $filter_dropdown.val();
         $filter_options.each(function(i) {
             var $option = $(this);
             var filter_code = $option.val();
@@ -25,7 +26,16 @@ $(document).ready(function() {
             $option.attr('hidden', hidden);
         });
 
-        $filter_dropown.val(first_available_code || '').change();
+        // Restore original filter if this is a valid option, and change to
+        // first available one otherwise
+        var new_filter = null;
+        if (filters.indexOf(original_filter) >= 0) {
+            new_filter = original_filter;
+        }
+        else {
+            new_filter = first_available_code;
+        }
+        $filter_dropdown.val(new_filter || '').change();
     });
 
     // Trigger a dropdown change to initialise filters dropdown
