@@ -1,0 +1,6 @@
+{% load cache %}
+{% if target.featured_image %}
+{% cache None featured_image target.id %}
+<img src="{{ target.featured_image.get_preview }}" id="featured-image" onerror="this.style.display='none'">
+{% endcache %}
+{% endif %}

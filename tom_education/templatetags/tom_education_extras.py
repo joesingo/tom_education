@@ -1,4 +1,6 @@
 from django import template
+from django.utils.html import format_html
+from django.utils.safestring import mark_safe
 from tom_dataproducts.models import DataProductGroup
 
 from tom_education.constants import RAW_FILE_EXTENSION
@@ -25,3 +27,16 @@ def dataproduct_selection_buttons(context, show_group_selection=True):
 @register.simple_tag
 def loading_message():
     return 'Loading...'
+
+
+@register.simple_tag
+def status_icon(status):
+    EMOJI_CHOICES = {'PENDING' : '🕒',
+              'FAILED' : '❌',
+              'WINDOW_EXPIRED' : '❌',
+              'COMPLETED' : '✅'}
+    return format_html(mark_safe('<span title={}>{}</span>'.format(status, EMOJI_CHOICES.get(status,'😑'))))
+
+@register.inclusion_tag('tom_targets/partials/target_features.html')
+def featured_images(target):
+    return {'target': target}

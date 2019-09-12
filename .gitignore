@@ -1,2 +1,5 @@
 *.pyc
 *.egg-info
+dump.rdb
+build/*
+dist/*
