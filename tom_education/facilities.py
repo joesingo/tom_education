@@ -5,16 +5,15 @@ from dateutil.parser import parse
 from tom_observations.facilities.lco import LCOFacility, LCOImagingObservationForm, make_request, PORTAL_URL
 
 class EducationLCOForm(LCOImagingObservationForm):
-    def get_extra_context(self):
+    @staticmethod
+    def get_schedulable_codes(api_response):
         """
-        Provide extra context to the view using this form.
-
-        Gets instrument information from the LCO API and constructs a list of
-        available filters/slits for each instrument.
+        For a JSON response from the instruments API, return a dictionary
+        mapping instrument names to lists of filter/slit codes which are
+        schedulable
         """
-        json_response = make_request('GET', PORTAL_URL + '/api/instruments/').json()
         info = {}
-        for name, val in json_response.items():
+        for name, val in api_response.items():
             keys = ('filters', 'slits')
             for key in keys:
                 objs = val['optical_elements'].get(key, [])
@@ -22,7 +21,14 @@ class EducationLCOForm(LCOImagingObservationForm):
                 if name not in info:
                     info[name] = []
                 info[name] += allowed
+        return info
 
+    def get_extra_context(self):
+        """
+        Provide extra context to the view using this form.
+        """
+        json_response = make_request('GET', PORTAL_URL + '/api/instruments/').json()
+        info = EducationLCOForm.get_schedulable_codes(json_response)
         return {'instrument_filters': json.dumps(info)}
 
     def layout(self):

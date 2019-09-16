@@ -1687,36 +1687,30 @@ class DataProductDeleteMultipleViewTestCase(DataProductTestCase):
 
 class EducationLCOFacilityTestCase(TomEducationTestCase):
     def test_instrument_filter_info(self):
-        class MockResponse:
-            def json(self):
-                return {
-                    'instr1': {
-                        'optical_elements': {
-                            'filters': [
-                                {'code': 'a1', 'schedulable': False},
-                                {'code': 'a2', 'schedulable': True},
-                            ],
-                            'slits': [
-                                {'code': 'a3', 'schedulable': True},
-                            ]
-                        }
-                    },
-                    'instr2': {
-                        'optical_elements': {
-                            'slits': [
-                                {'code': 'b1', 'schedulable': True},
-                            ]
-                        }
-                    }
+       # Construct dict that looks like a response from the LCO instruments API
+        instr_response = {
+            'instr1': {
+                'optical_elements': {
+                    'filters': [
+                        {'code': 'a1', 'schedulable': False},
+                        {'code': 'a2', 'schedulable': True},
+                    ],
+                    'slits': [
+                        {'code': 'a3', 'schedulable': True},
+                    ]
                 }
-        def mock_make_request(*args, **kwargs):
-            return MockResponse()
-
-        with patch('tom_education.facilities.make_request', mock_make_request):
-            form = EducationLCOForm()
-            self.assertEqual((form.get_extra_context()), {
-                'instrument_filters': json.dumps({
-                    'instr1': ['a2', 'a3'],
-                    'instr2': ['b1'],
-                })
-            })
+            },
+            'instr2': {
+                'optical_elements': {
+                    'slits': [
+                        {'code': 'b1', 'schedulable': True},
+                    ]
+                }
+            }
+        }
+        expected = {
+            'instr1': ['a2', 'a3'],
+            'instr2': ['b1'],
+        }
+        got = EducationLCOForm.get_schedulable_codes(instr_response)
+        self.assertEqual(got, expected)
