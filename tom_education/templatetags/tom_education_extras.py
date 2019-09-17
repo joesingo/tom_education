@@ -1,3 +1,5 @@
+import json
+
 from django import template
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
@@ -55,3 +57,10 @@ def dataproduct_other_for_target(target):
         'photometry' : target.dataproduct_set.filter(tag='Photometry'),
         'target': target
     }
+
+@register.filter
+def dataproduct_extrainfo(text):
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return None

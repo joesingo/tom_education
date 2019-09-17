@@ -6,6 +6,11 @@
 {% for p in products %}
 <div class="col p-2">
   <img src="{{p.get_preview}}" />
+  {% with p.extra_data|dataproduct_extrainfo as info %}
+  {% for key, value in info.items %}
+  {{value}}
+  {% endfor %}
+  {% endwith %}
 </div>
 {% endfor %}
 </div>
