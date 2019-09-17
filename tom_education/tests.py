@@ -1737,3 +1737,36 @@ class EducationLCOFacilityTestCase(TomEducationTestCase):
         }
         got = EducationLCOForm.get_schedulable_codes(instr_response)
         self.assertEqual(got, expected)
+
+
+class EducationTargetViewsTestCase(TomEducationTestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.user = User.objects.create_user(username='test', email='test@example.com')
+        cls.target = Target.objects.create(
+            identifier='target123', name='my target', type=Target.NON_SIDEREAL
+        )
+        assign_perm('tom_targets.change_target', cls.user, cls.target)
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_login(self.user)
+
+    @override_settings(EXTRA_FIELDS=[{'name': 'strextra', 'type': 'string'},
+                                     {'name': 'numericextra', 'type': 'number'}])
+    def test_create_view(self):
+
+        create_url = reverse('tom_education:target_create') + '?type={}'.format(Target.NON_SIDEREAL)
+        update_url = reverse('tom_education:target_update', kwargs={'pk': self.target.pk})
+
+        for url in (create_url, update_url):
+            response = self.client.get(url)
+            self.assertIn('non_sidereal_fields', response.context)
+            field_info = json.loads(response.context['non_sidereal_fields'])
+            self.assertEqual(set(field_info.keys()), {'base_fields', 'scheme_fields'})
+            # Check declared, extra and core required fields are in base_fields
+            self.assertTrue(
+                {'groups', 'strextra', 'numericextra', 'scheme'} <= set(field_info['base_fields'])
+            )
+            self.assertIsInstance(field_info['scheme_fields'], dict)

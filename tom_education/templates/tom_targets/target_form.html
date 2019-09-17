@@ -1,0 +1,19 @@
+{% extends 'tom_targets/target_form.html' %}
+{% load static %}
+
+{% block content %}
+
+{# For the non-sidereal form, include JS to filter the avilable fields based on the scheme #}
+{% if non_sidereal_fields %}
+    <script type="application/json" id="non-sidereal-fields-json">
+    {
+        "non_sidereal_fields": {{ non_sidereal_fields|safe }}
+    }
+    </script>
+    <script type='text/javascript' src='{% static 'tom_education/non_sidereal_field_filtering.js' %}'></script>
+
+{% endif %}
+
+{{ block.super }}
+
+{% endblock %}

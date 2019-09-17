@@ -19,7 +19,7 @@
         <div class="card-body">
           <div class="row" style="font-size:80%;">
             <div class="col">
-              <a href="{% url 'tom_targets:update' pk=target.id %}" title="Update target" class="btn  btn-outline-primary">Update Target</a>
+              <a href="{% url 'tom_education:target_update' pk=target.id %}" title="Update target" class="btn  btn-outline-primary">Update Target</a>
               <a href="{% url 'tom_targets:delete' pk=target.id %}" title="Delete target" class="btn  btn-outline-danger">Delete Target</a>
               <dl class="row">
                 {% for key, value in target.as_dict.items %}

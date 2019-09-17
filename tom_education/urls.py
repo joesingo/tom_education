@@ -5,6 +5,8 @@ from tom_education.views import (
     ActionableTargetDetailView,
     AsyncStatusApi,
     DataProductDeleteMultipleView,
+    EducationTargetCreateView,
+    EducationTargetUpdateView,
     GalleryView,
     ObservationAlertApiCreateView,
     PipelineProcessApi,
@@ -16,8 +18,13 @@ from tom_education.views import (
 app_name = "tom_education"
 
 urlpatterns = [
+    # Overriden tom_base URLs
     path('observations/<str:facility>/create/', TemplatedObservationCreateView.as_view(), name='create_obs'),
     path('targets/<int:pk>/', TargetDetailView.as_view(), name='target_detail'),
+    path('targets/create/', EducationTargetCreateView.as_view(), name='target_create'),
+    path('targets/<pk>/update/', EducationTargetUpdateView.as_view(), name='target_update'),
+
+    # New views
     path('targets/<int:pk>/data/', ActionableTargetDetailView.as_view(), name='target_data'),
     path('pipeline/<pk>', PipelineProcessDetailView.as_view(), name='pipeline_detail'),
     path('gallery/', GalleryView.as_view(), name='gallery'),

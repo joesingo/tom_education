@@ -17,8 +17,11 @@ from django.views.generic.edit import FormMixin
 from tom_dataproducts.models import DataProduct, ObservationRecord, ReducedDatum
 from tom_observations.facility import get_service_class
 from tom_observations.views import ObservationCreateView
-from tom_targets.models import Target
-from tom_targets.views import TargetDetailView
+from tom_targets.models import (
+    Target, GLOBAL_TARGET_FIELDS, REQUIRED_NON_SIDEREAL_FIELDS,
+    REQUIRED_NON_SIDEREAL_FIELDS_PER_SCHEME
+)
+from tom_targets.views import TargetDetailView, TargetCreateView, TargetUpdateView
 from rest_framework.exceptions import NotFound
 from rest_framework.generics import CreateAPIView, ListAPIView, RetrieveAPIView
 from rest_framework import serializers
@@ -461,3 +464,39 @@ class DataProductDeleteMultipleView(LoginRequiredMixin, TemplateView):
             prod.delete()
         messages.success(request, 'Deleted {} data products'.format(len(prods)))
         return HttpResponseRedirect(self.request.POST.get('next', '/'))
+
+
+class NonSiderealFieldsMixin:
+    """
+    Mixin for views which adds information to the template context about the
+    required fields per scheme for non-sidereal targets. This allows client
+    side JS to hide fields which are not applicable for the selected scheme.
+
+    Relies on the view having a method get_target_type() which returns
+    Target.SIDEREAL or Target.NON_SIDEREAL
+    """
+    def get_context_data(self, *args, **kwargs):
+        context = super().get_context_data(*args, **kwargs)
+        if self.get_target_type() == Target.NON_SIDEREAL:
+            form = self.get_form()
+
+            # Build list of base fields that should always be shown, including
+            # non-model fields declared in the form itself and extra fields
+            declared = list(form.declared_fields.keys())
+            extra = list(getattr(form, 'extra_fields', {}).keys())
+            base = GLOBAL_TARGET_FIELDS + REQUIRED_NON_SIDEREAL_FIELDS + declared + extra
+
+            context['non_sidereal_fields'] = json.dumps({
+                'base_fields': base,
+                'scheme_fields': REQUIRED_NON_SIDEREAL_FIELDS_PER_SCHEME,
+            })
+        return context
+
+
+class EducationTargetCreateView(NonSiderealFieldsMixin, TargetCreateView):
+    pass
+
+
+class EducationTargetUpdateView(NonSiderealFieldsMixin, TargetUpdateView):
+    def get_target_type(self):
+        return self.object.type
