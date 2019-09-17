@@ -15,7 +15,7 @@ setup(
     author_email='joesingo@gmail.com',
     install_requires=[
         'astroscrappy==1.0.8',
-        'tomtoolkit[test]==0.7.1',  # TODO: install test deps in extras_require
+        'tomtoolkit==0.8.0',
         'numpy',
         'imageio-ffmpeg==0.3.0',
         'imageio==2.5.0',
@@ -28,4 +28,7 @@ setup(
     ],
     packages=find_packages(),
     include_package_data=True,
+    extras_require={
+        'test': ['factory_boy', 'rise-set']
+    }
 )

@@ -70,13 +70,14 @@ class DataProductSelectionForm(forms.Form):
         products = kwargs.pop('products')
         super().__init__(*args, **kwargs)
 
-        self.product_ids = set([])
+        self.product_pks = set([])
         for dp in products:
-            self.product_ids.add(dp.product_id)
-            self.fields[dp.product_id] = forms.fields.BooleanField(required=False)
+            str_pk = str(dp.pk)
+            self.product_pks.add(str_pk)
+            self.fields[str_pk] = forms.fields.BooleanField(required=False)
 
     def clean(self):
-        if not any(self.cleaned_data.get(pid) for pid in self.product_ids):
+        if not any(self.cleaned_data.get(str_pk) for str_pk in self.product_pks):
             raise ValidationError('No data product selected')
 
     def get_selected_products(self):
@@ -84,8 +85,8 @@ class DataProductSelectionForm(forms.Form):
         Return the set of products that were selected
         """
         return {
-            DataProduct.objects.get(product_id=pid)
-            for pid, checked in self.cleaned_data.items() if pid in self.product_ids and checked
+            DataProduct.objects.get(pk=int(str_pk))
+            for str_pk, checked in self.cleaned_data.items() if str_pk in self.product_pks and checked
         }
 
 
