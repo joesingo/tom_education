@@ -350,13 +350,13 @@ class DataProductTestCase(TomEducationTestCase):
             setattr(cls, 'pk{}'.format(i), str(prod.pk))
 
 
-class TargetDetailViewTestCase(DataProductTestCase):
+class TargetDataViewTestCase(DataProductTestCase):
     def setUp(self):
         super().setUp()
         self.user = User.objects.create_user(username='test', email='test@example.com')
         self.client.force_login(self.user)
         assign_perm('tom_targets.view_target', self.user, self.target)
-        self.url = reverse('tom_education:target_detail', kwargs={'pk': self.target.pk})
+        self.url = reverse('tom_education:target_data', kwargs={'pk': self.target.pk})
 
     def test_selection_buttons(self):
         response = self.client.get(self.url)
@@ -465,7 +465,7 @@ class TimelapseTestCase(DataProductTestCase):
         dt_mock.fromisoformat.return_value = d
 
         # GET page and check form is in the context
-        url = reverse('tom_education:target_detail', kwargs={'pk': self.target.pk})
+        url = reverse('tom_education:target_data', kwargs={'pk': self.target.pk})
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertIn('dataproducts_form', response.context)
@@ -711,7 +711,7 @@ class TimelapseTestCase(DataProductTestCase):
     def test_dataproduct_table(self):
         """
         Check that only created timelapses are shown in the data product table
-        in the target detail view
+        in the target data view
         """
         # Create one timelapse for each status
         pending = TimelapseDataProduct.objects.create(product_id='pend', target=self.target)
@@ -727,7 +727,7 @@ class TimelapseTestCase(DataProductTestCase):
             identifier='fail', status=ASYNC_STATUS_FAILED, timelapse_product=failed
         )
 
-        url = reverse('tom_education:target_detail', kwargs={'pk': self.target.pk})
+        url = reverse('tom_education:target_data', kwargs={'pk': self.target.pk})
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
 
@@ -743,7 +743,7 @@ class TimelapseTestCase(DataProductTestCase):
     def test_non_fits_file(self):
         new_dp = DataProduct.objects.create(product_id='notafitsfile', target=self.target)
         new_dp.data.save('hello.png', File(BytesIO()))
-        url = reverse('tom_education:target_detail', kwargs={'pk': self.target.pk})
+        url = reverse('tom_education:target_data', kwargs={'pk': self.target.pk})
         response = self.client.post(url, {
             'action': 'create_timelapse',
             self.pk0: 'on',
@@ -1209,8 +1209,8 @@ class PipelineTestCase(TomEducationTestCase):
     @patch('tom_education.tests.FakePipelineWithFlags.log_flags')
     @patch('tom_education.views.datetime')
     def test_form(self, dt_mock, flags_mock):
-        """In the target detail view"""
-        url = reverse('tom_education:target_detail', kwargs={'pk': self.target.pk})
+        """In the target data view"""
+        url = reverse('tom_education:target_data', kwargs={'pk': self.target.pk})
         test_settings = {
             'mypip': 'tom_education.tests.FakePipeline',
             'withflags': 'tom_education.tests.FakePipelineWithFlags'
@@ -1276,7 +1276,7 @@ class PipelineTestCase(TomEducationTestCase):
             {'mypip': 'tom_education.tests.FakePipelineBadFlags'},
         ]
 
-        url = reverse('tom_education:target_detail', kwargs={'pk': self.target.pk})
+        url = reverse('tom_education:target_data', kwargs={'pk': self.target.pk})
         for invalid in invalid_settings:
             with self.settings(TOM_EDUCATION_PIPELINES=invalid):
                 with self.assertRaises(InvalidPipelineError):
@@ -1662,7 +1662,7 @@ class DataProductDeleteMultipleViewTestCase(DataProductTestCase):
         self.user = User.objects.create_user(username='test', email='test@example.com')
         self.client.force_login(self.user)
         assign_perm('tom_targets.view_target', self.user, self.target)
-        self.url = reverse('tom_education:target_detail', kwargs={'pk': self.target.pk})
+        self.url = reverse('tom_education:target_data', kwargs={'pk': self.target.pk})
         self.num_products = DataProduct.objects.count()
 
     def test_user_not_logged_in(self):
