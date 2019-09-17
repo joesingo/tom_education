@@ -346,6 +346,9 @@ class DataProductTestCase(TomEducationTestCase):
             prod.data.save('{}.fits.fz'.format(product_id), File(buf), save=True)
             cls.prods.append(prod)
 
+            # Save pk to class for convinience
+            setattr(cls, 'pk{}'.format(i), str(prod.pk))
+
 
 class TargetDetailViewTestCase(DataProductTestCase):
     def setUp(self):
@@ -392,6 +395,24 @@ class TargetDetailViewTestCase(DataProductTestCase):
         self.assertIn(b'Second group', response.content)
         self.assertIn(b'dpgroup-1', response.content)
         self.assertIn(b'dpgroup-2', response.content)
+
+    def test_null_product_id(self):
+        """
+        The data product action buttons should still work with products with
+        None product_id (unfortunately, such data products may exist -- e.g.
+        ones created by a user uploading a file)
+        """
+        dp1 = DataProduct.objects.create(product_id='hello', target=self.target)
+        dp2 = DataProduct.objects.create(target=self.target)
+
+        dp1.data.save('file1', File(BytesIO()))
+        dp1.data.save('file2', File(BytesIO()))
+
+        response = self.client.post(self.url, data={
+            'action': 'view_gallery',
+            dp1.pk: 'on',
+            dp2.pk: 'on'
+        })
 
 
 @override_settings(TOM_EDUCATION_TIMELAPSE_SETTINGS={
@@ -458,9 +479,9 @@ class TimelapseTestCase(DataProductTestCase):
         # POST form
         response2 = self.client.post(url, {
             'action': 'create_timelapse',
-            'test0': 'on',
-            'test3': 'on',
-            'test2': 'on',
+            self.pk0: 'on',
+            self.pk3: 'on',
+            self.pk2: 'on',
         })
         # Should get JSON response
         self.assertEqual(response2.status_code, 200)
@@ -500,7 +521,7 @@ class TimelapseTestCase(DataProductTestCase):
         form2 = DataProductActionForm(target=self.target, data={'action': 'blah'})
         self.assertFalse(form2.is_valid())
 
-        form3 = DataProductActionForm(target=self.target, data={'test0': 'on', 'action': 'blah'})
+        form3 = DataProductActionForm(target=self.target, data={self.pk0: 'on', 'action': 'blah'})
         self.assertTrue(form3.is_valid())
 
     def test_fits_file_sorting(self):
@@ -725,8 +746,8 @@ class TimelapseTestCase(DataProductTestCase):
         url = reverse('tom_education:target_detail', kwargs={'pk': self.target.pk})
         response = self.client.post(url, {
             'action': 'create_timelapse',
-            'test0': 'on',
-            'notafitsfile': 'on',
+            self.pk0: 'on',
+            new_dp.pk: 'on',
         })
         # Status and error message of TimelapseProcess should be set
         proc = TimelapseProcess.objects.first()
@@ -823,6 +844,7 @@ class GalleryTestCase(TomEducationTestCase):
             buf = write_fits_image_file(image_data)
             prod.data.save(product_id, File(buf), save=True)
             self.prods.append(prod)
+            setattr(self, 'pk{}'.format(i), str(prod.pk))
 
     def test_no_products(self):
         response = self.client.get(self.url)
@@ -839,7 +861,7 @@ class GalleryTestCase(TomEducationTestCase):
         self.assertIn('form', response.context)
         form = response.context['form']
         self.assertTrue(isinstance(form, GalleryForm))
-        self.assertEqual(form.product_ids, {self.prods[0].product_id, self.prods[2].product_id})
+        self.assertEqual(form.product_pks, {str(self.prods[0].pk), str(self.prods[2].pk)})
 
         self.assertIn('product_pks', response.context)
         self.assertEqual(response.context['product_pks'], pks)
@@ -852,8 +874,8 @@ class GalleryTestCase(TomEducationTestCase):
         response = self.client.post(self.url, {
             'product_pks': ','.join([str(p.pk) for p in self.prods]),
             'group': mygroup.pk,
-            'test0': 'on',
-            'test1': 'on',
+            self.pk0: 'on',
+            self.pk1: 'on',
         })
 
         # Products should have been added to the group
@@ -1033,6 +1055,7 @@ class PipelineTestCase(TomEducationTestCase):
         cls.target = Target.objects.create(identifier=target_identifier, name='my target')
         cls.prods = [DataProduct.objects.create(product_id=f'test_{i}', target=cls.target)
                      for i in range(4)]
+        cls.pks = [str(prod.pk) for prod in cls.prods]
         for prod in cls.prods:
             fn = f'{prod.product_id}_file.tar.gz'
             prod.data.save(fn, File(BytesIO()))
@@ -1209,13 +1232,13 @@ class PipelineTestCase(TomEducationTestCase):
                 {'action': 'pipeline', 'pipeline_name': 'blah'},
             ]
             for data in expect_400_data:
-                resp = self.client.post(url, dict(data, test_0='on'))
+                resp = self.client.post(url, dict(data, **{self.pks[0]: 'on'}))
                 self.assertEqual(resp.status_code, 400, data)
 
             # Give valid pipeline name and check expected methods are called
             dt_mock.now.return_value = datetime(year=1980, month=1, day=1)
             response2 = self.client.post(url, {
-                'action': 'pipeline', 'pipeline_name': 'mypip', 'test_0': 'on'
+                'action': 'pipeline', 'pipeline_name': 'mypip', self.pks[0]: 'on'
             })
             self.assertEqual(response2.status_code, 200)
             # Check process was made
@@ -1231,7 +1254,7 @@ class PipelineTestCase(TomEducationTestCase):
             # correctly
             dt_mock.now.return_value = datetime(year=1981, month=1, day=1)
             response3 = self.client.post(url, {
-                'action': 'pipeline', 'pipeline_name': 'withflags', 'test_0': 'on',
+                'action': 'pipeline', 'pipeline_name': 'withflags', self.pks[0]: 'on',
                 'pipeline_flag_myflag': 'on',
                 'pipeline_flag_default_false': 'on',
                 'pipeline_flag_bogus': 'on',  # unexpected flag name should not cause problems

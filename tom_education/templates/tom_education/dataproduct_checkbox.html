@@ -1,4 +1,4 @@
-<input type="checkbox" name="{{ product.product_id }}"
+<input type="checkbox" name="{{ product.pk }}"
        class="dataproduct-checkbox
               {% for g in groups %} dpgroup-{{ g.pk }} {% endfor %}
               {% if reduced %}reduced{% endif %}" />
