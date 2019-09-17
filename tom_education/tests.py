@@ -20,7 +20,7 @@ from django.contrib.auth.models import User
 from guardian.shortcuts import assign_perm
 import imageio
 import numpy as np
-from tom_dataproducts.models import DataProduct, DataProductGroup, IMAGE_FILE
+from tom_dataproducts.models import DataProduct, ReducedDatum, DataProductGroup, IMAGE_FILE
 from tom_targets.models import Target
 from tom_observations.models import ObservationRecord
 from tom_observations.tests.factories import ObservingRecordFactory
@@ -40,6 +40,7 @@ from tom_education.models import (
     ObservationAlert,
     ObservationTemplate,
     PipelineProcess,
+    PipelineOutput,
     TIMELAPSE_GIF,
     TIMELAPSE_MP4,
     TIMELAPSE_WEBM,
@@ -1017,11 +1018,17 @@ class FakePipeline(PipelineProcess):
     def do_pipeline(self, tmpdir, **kwargs):
         self.log("doing the thing")
         file1 = tmpdir / 'file1.csv'
-        file2 = tmpdir / 'file2.png'
+        file2 = tmpdir / 'file2.hs'
+        file3 = tmpdir / 'file3.png'
         file1.write_text('hello')
         file2.write_text('goodbye')
+        file3.write_text('hello again')
         self.log("and another thing")
-        return (file1, file2)
+        return [
+            (file1, DataProduct),
+            (file2, ReducedDatum, 'mydatatype'),
+            PipelineOutput(path=file3, output_type=DataProduct, tag='specialtag')
+        ]
 
 
 class FakePipelineWithFlags(FakePipeline):
@@ -1077,20 +1084,28 @@ class PipelineTestCase(TomEducationTestCase):
         with self.assertRaises(AsyncError):
             proc.run()
 
-    def test_create_group(self):
+    @patch('tom_education.models.pipelines.datetime')
+    def test_save_outputs(self, dt_mock):
+        dt_mock.now.return_value = datetime(
+            year=1970, month=1, day=1, hour=0, minute=0, second=17
+        )
+
         proc = FakePipeline.objects.create(identifier='someprocess', target=self.target)
         proc.input_files.add(*self.prods)
         proc.save()
 
         pre_dp_count = DataProduct.objects.count()
+        pre_reduced_count = ReducedDatum.objects.count()
         pre_group_count = DataProductGroup.objects.count()
         self.assertEqual(pre_group_count, 0)
 
         proc.run()
 
         post_dp_count = DataProduct.objects.count()
+        post_reduced_count = ReducedDatum.objects.count()
         post_group_count = DataProductGroup.objects.count()
         self.assertEqual(post_dp_count, pre_dp_count + 2)
+        self.assertEqual(post_reduced_count, pre_reduced_count + 1)
         self.assertEqual(post_group_count, pre_group_count + 1)
 
         self.assertTrue(proc.group is not None)
@@ -1099,9 +1114,61 @@ class PipelineTestCase(TomEducationTestCase):
 
         # Output names and contents come from FakePipeline.do_pipeline
         file1_dp = DataProduct.objects.get(product_id='someprocess_file1.csv')
-        file2_dp = DataProduct.objects.get(product_id='someprocess_file2.png')
+        file3_dp = DataProduct.objects.get(product_id='someprocess_file3.png')
         self.assertEqual(file1_dp.data.read(), b'hello')
-        self.assertEqual(file2_dp.data.read(), b'goodbye')
+        self.assertEqual(file3_dp.data.read(), b'hello again')
+
+        self.assertEqual(file1_dp.tag, '')
+        self.assertEqual(file3_dp.tag, 'specialtag')
+
+        file2_rd = ReducedDatum.objects.get(source_name='someprocess_file2.hs')
+        self.assertEqual(file2_rd.target, self.target)
+        self.assertEqual(file2_rd.data_type, 'mydatatype')
+        self.assertEqual(file2_rd.timestamp.timestamp(), 17)
+        self.assertEqual(file2_rd.value, 'goodbye')
+        self.assertEqual(file2_rd.source_location, '')
+
+    def test_no_data_products(self):
+        # If outputs are only reduced data, a data product group should not be
+        # created
+        class NoDataProductPipeline(PipelineProcess):
+            class Meta:
+                proxy = True
+            def do_pipeline(pself, tmpdir):
+                outfile = tmpdir / 'somefile.csv'
+                outfile.write_text('this is a csv')
+                return [(outfile, ReducedDatum)]
+
+        pre_group_count = DataProductGroup.objects.count()
+        pre_reduced_count = DataProductGroup.objects.count()
+
+        proc = NoDataProductPipeline.objects.create(identifier='someprocess', target=self.target)
+        proc.input_files.add(*self.prods)
+        proc.save()
+        proc.run()
+
+        post_group_count = DataProductGroup.objects.count()
+        post_reduced_count = ReducedDatum.objects.count()
+        # No group should have been created
+        self.assertEqual(post_group_count, pre_group_count)
+        # ReducedDatum should still have been created
+        self.assertEqual(post_reduced_count, pre_reduced_count + 1)
+
+    def test_invalid_output_type(self):
+        class InvalidOutputTypePipeline(PipelineProcess):
+            class Meta:
+                proxy = True
+            def do_pipeline(pself, tmpdir):
+                outfile = tmpdir / 'somefile.csv'
+                outfile.write_text('this is a csv')
+                return [(outfile, 'cheese', 'sometag')]
+
+        proc = InvalidOutputTypePipeline.objects.create(identifier='someprocess', target=self.target)
+        proc.input_files.add(*self.prods)
+        proc.save()
+        with self.assertRaises(AsyncError) as ex_info:
+            proc.run()
+        self.assertEqual("Invalid output type 'cheese'", str(ex_info.exception))
 
     def test_logs(self):
         proc = FakePipeline.objects.create(identifier='someprocess', target=self.target)
@@ -1235,7 +1302,7 @@ class PipelineTestCase(TomEducationTestCase):
                 resp = self.client.post(url, dict(data, **{self.pks[0]: 'on'}))
                 self.assertEqual(resp.status_code, 400, data)
 
-            # Give valid pipeline name and check expected methods are called
+            # Give valid pipeline name and check it was created and run
             dt_mock.now.return_value = datetime(year=1980, month=1, day=1)
             response2 = self.client.post(url, {
                 'action': 'pipeline', 'pipeline_name': 'mypip', self.pks[0]: 'on'

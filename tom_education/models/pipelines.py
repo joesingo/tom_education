@@ -1,4 +1,6 @@
+from collections import namedtuple
 from contextlib import contextmanager
+from datetime import datetime
 import json
 import tempfile
 from pathlib import Path
@@ -9,7 +11,7 @@ from django.conf import settings
 from django.core.files.base import ContentFile
 from django.db import models
 from django.utils.module_loading import import_string
-from tom_dataproducts.models import DataProduct, DataProductGroup
+from tom_dataproducts.models import DataProduct, ReducedDatum, DataProductGroup
 
 from tom_education.models.async_process import AsyncError, AsyncProcess, ASYNC_STATUS_CREATED
 from tom_education.utils import assert_valid_suffix
@@ -19,6 +21,10 @@ class InvalidPipelineError(Exception):
     """
     Failed to import a PipelineProcess subclass from settings
     """
+
+
+PipelineOutput = namedtuple('PipelineOutput', ['path', 'output_type', 'tag'],
+                            defaults=('',))  # tag is optional
 
 
 class PipelineProcess(AsyncProcess):
@@ -50,23 +56,48 @@ class PipelineProcess(AsyncProcess):
 
             # Do the actual work
             flags = json.loads(self.flags_json) if self.flags_json else {}
-            output_paths = self.do_pipeline(tmpdir, **flags)
+            outputs = self.do_pipeline(tmpdir, **flags)
 
             # Save outputs
-            self.group = DataProductGroup.objects.create(name=f'{self.identifier}_outputs')
-            for path in output_paths:
-                product_id = f'{self.identifier}_{path.name}'
-                prod = DataProduct.objects.create(product_id=product_id, target=self.target)
-                prod.group.add(self.group)
-                prod.data.save(product_id, ContentFile(path.read_bytes()))
+            new_dps = []
+            for output in outputs:
+                if not isinstance(output, PipelineOutput):
+                    output = PipelineOutput(*output)
+
+                path, output_type, tag = output
+                identifier = f'{self.identifier}_{path.name}'
+
+                if output_type == DataProduct:
+                    prod = DataProduct.objects.create(product_id=identifier, target=self.target, tag=tag)
+                    prod.data.save(identifier, ContentFile(path.read_bytes()))
+                    new_dps.append(prod)
+
+                elif output_type == ReducedDatum:
+                    ReducedDatum.objects.create(
+                        target=self.target,
+                        data_type=tag,
+                        source_name=identifier,
+                        timestamp=datetime.now(),
+                        value=path.read_text()
+                    )
+
+                else:
+                    raise AsyncError(f"Invalid output type '{output_type}'")
+
+            # Create a group to collect DataProduct outputs into
+            if new_dps:
+                self.group = DataProductGroup.objects.create(name=f'{self.identifier}_outputs')
+                for prod in new_dps:
+                    prod.group.add(self.group)
+                    prod.save()
 
         self.status = ASYNC_STATUS_CREATED
         self.save()
 
     def do_pipeline(self, tmpdir):
         """
-        Perform the actual work, and return a sequence of pathlib.Path objects
-        for each output file to be saved.
+        Perform the actual work, and return a sequence of PipelineOutput
+        objects (or tuples) for each output file to be saved.
 
         Should raise AsyncError(failure_message) on failure
         """
