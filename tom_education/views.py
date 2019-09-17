@@ -63,6 +63,7 @@ class TemplatedObservationCreateView(ObservationCreateView):
         form = context['form']
         if hasattr(form, 'get_extra_context'):
             context.update(form.get_extra_context())
+        context['target'] = self.get_target()
         return context
 
     def serialize_fields(self, form):
