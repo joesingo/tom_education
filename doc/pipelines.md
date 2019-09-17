@@ -5,15 +5,14 @@ list of `DataProduct` objects as inputs, performs some process on the data
 (which are usually FITS files), and produces some outputs. A *process* refers
 to an instance of a pipeline for a particular target and set of input files.
 
-Processes are run by selecting a number of data products on the target page in
-the TOM, and selecting the pipeline to run. Processes run asynchronously, and a
-[separate page shown the status and log output as it
+Processes are run by selecting a number of data products on the target data
+page in `tom_education`, and selecting the pipeline to run. Processes run
+asynchronously, and a [separate page shown the status and log output as it
 progresses](#status-and-log-page).
 
-On completion, a new `DataProductGroup` is created to store the outputs of the
-process as `DataProduct` objects.
-
-**TODO:** provide some reference for the `tom_base` classes.
+On completion, outputs from a process are saved in the TOM as either
+`DataProduct` or `ReducedDatum` objects. See the section below on [saving
+outputs](#saving-outputs) for more details.
 
 ## Defining a pipeline
 
@@ -34,6 +33,9 @@ The following class serves as a minimal example showing the methods that must
 be defined.
 
 ```python
+from tom_dataproducts.models import DataProduct, ReducedDatum
+from tom_education.models import PipelineProcess, PipelineOutput
+
 class ExamplePipelineProcess(PipelineProcess):
     # Label used as a prefix for names of generated data products
     short_name = 'example'
@@ -57,8 +59,8 @@ class ExamplePipelineProcess(PipelineProcess):
         `tmpdir` is `pathlib.Path` object for a temporary directory which can
         be used to write outputs and other temporary files.
 
-        This method will return a sequence of Path objects for the output files
-        that should be saved as new `DataProduct` objects in TOM.
+        This method will return a sequence of PipelineOutput objects (or
+        tuples) for the output files that should be saved in the TOM.
         """
         # The `Target` object is available as `self.target`
         ra = self.target.ra
@@ -71,12 +73,45 @@ class ExamplePipelineProcess(PipelineProcess):
             path = product.data.path
             # Do something with file...
 
-        # Create an output file
+        # Create some output files
         outcsv = tmpdir / 'my_output.csv'
         outcsv.write_text('data here')
+        outpng = tmpdir / 'anther_output.png'
+        outpng.write_bytes(b'PNG data here')
 
-        return [outcsv]
+        return [
+            PipelineOutput(path=outcsv, output_type=ReducedDatum),
+            (outpng, DataProduct)  # Can output a tuple instead of PipelineOutput
+        ]
 ```
+
+# Saving Outputs
+
+Outputs are saved in the TOM as either `DataProduct` or `ReducedDatum`; the
+definition of these models can be found in the [tom_dataproducts source
+code](https://github.com/TOMToolkit/tom_base/blob/master/tom_dataproducts/models.py).
+
+`DataProduct` objects have a file field which can store arbitrary files. This
+can be used for binary files such as FITS files and other images.
+
+A `ReducedDatum` object represents a single piece of 'reduced' data, and stores
+the value as a free-form text field. This can be used for text outputs such as
+CSV, and plain text files.
+
+To specify which output type should be used for each file, the `do_pipeline()`
+method of a `PipelineProcess` class should return a list of `PipelineOutput`
+objects (or tuples from which a `PipelineOutput` can be instantiated).
+`PipelineOutput` is a
+[namedtuple](https://docs.python.org/3/library/collections.html#collections.namedtuple)
+class with the following fields
+
+* `path`: A `pathlib.Path` object for the file to save
+* `output_type`: Either `DataProduct` or `ReducedDatum`
+* `tag`: (Optional) A string value to use for the `tag` field for `DataProduct`
+  objects or `data_type` field for `ReducedDatum`.
+
+If at least one `DataProduct` output is produced, a new `DataProductGroup` is
+created to hold these products.
 
 ## Errors
 
