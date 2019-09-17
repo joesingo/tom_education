@@ -1,5 +1,6 @@
 from django.urls import path
 
+from tom_targets.views import TargetDetailView
 from tom_education.views import (
     ActionableTargetDetailView,
     AsyncStatusApi,
@@ -16,7 +17,8 @@ app_name = "tom_education"
 
 urlpatterns = [
     path('observations/<str:facility>/create/', TemplatedObservationCreateView.as_view(), name='create_obs'),
-    path('targets/<int:pk>/', ActionableTargetDetailView.as_view(), name='target_detail'),
+    path('targets/<int:pk>/', TargetDetailView.as_view(), name='target_detail'),
+    path('targets/<int:pk>/data/', ActionableTargetDetailView.as_view(), name='target_data'),
     path('pipeline/<pk>', PipelineProcessDetailView.as_view(), name='pipeline_detail'),
     path('gallery/', GalleryView.as_view(), name='gallery'),
     path('dataproducts/deletemultiple/', DataProductDeleteMultipleView.as_view(), name='delete_dataproducts'),

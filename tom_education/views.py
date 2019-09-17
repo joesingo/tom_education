@@ -145,6 +145,7 @@ class ActionableTargetDetailView(FormMixin, TargetDetailView):
     submission, where `<name>` is the value of the action field in the form.
     """
     form_class = DataProductActionForm
+    template_name = "tom_targets/target_dataview.html"
 
     def get_success_url(self):
         return reverse('tom_targets:detail', kwargs={'pk': self.get_object().pk})
@@ -246,7 +247,6 @@ class ActionableTargetDetailView(FormMixin, TargetDetailView):
         base = reverse('tom_education:delete_dataproducts')
         url = base + '?' + urlencode({'product_pks': ",".join(product_pks)})
         return redirect(url)
-
 
 class GalleryView(FormView):
     """

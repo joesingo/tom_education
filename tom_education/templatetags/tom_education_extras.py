@@ -40,3 +40,18 @@ def status_icon(status):
 @register.inclusion_tag('tom_targets/partials/target_features.html')
 def featured_images(target):
     return {'target': target}
+
+@register.inclusion_tag('tom_dataproducts/partials/dataproduct_thumbs_for_target.html')
+def dataproduct_thumbs_for_target(target):
+    return {
+        'products': target.dataproduct_set.filter(data__contains='fits').order_by('-created')[:6],
+        'target': target
+    }
+
+@register.inclusion_tag('tom_dataproducts/partials/dataproduct_other_for_target.html')
+def dataproduct_other_for_target(target):
+    return {
+        'timelapse': target.dataproduct_set.filter(tag='Timelapse'),
+        'photometry' : target.dataproduct_set.filter(tag='Photometry'),
+        'target': target
+    }

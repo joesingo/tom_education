@@ -1,0 +1,19 @@
+{% extends 'tom_common/base.html' %}
+{% load comments bootstrap4 tom_common_extras targets_extras observation_extras dataproduct_extras static cache tom_education_extras %}
+{% block title %}Target {{ object.name }}{% endblock %}
+{% block additional_css %}
+<link rel="stylesheet" href="{% static 'tom_targets/css/main.css' %}">
+{% endblock %}
+{% block content %}
+<h2><a href="{% url 'tom_education:target_detail' object.pk %}">{{object.identifier}} - {{ object.name }}</a> details
+  {% if object.extra_fields.active %}
+  <span class="badge badge-pill badge-info">Active</span>
+  {% else %}
+  <span class="badge badge-pill badge-secondary">Inactive</span>
+  {% endif %}
+  </h2>
+
+  {% dataproduct_list_for_target object %}
+
+
+{% endblock %}

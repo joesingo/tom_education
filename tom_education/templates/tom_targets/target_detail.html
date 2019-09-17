@@ -14,11 +14,6 @@
   </h2>
 <div class="row">
   <div class="col-md-8">
-    <a class="btn btn-outline-primary" data-toggle="collapse" href="#collapseExample" role="button" aria-expanded="false" aria-controls="collapseExample">
-      More Info
-     </a>
-     <a href="{% url 'tom_observations:create' facility='LCO' %}?target_id={{ object.id }}" class="btn  btn-outline-primary">Observe</a>
-
     <div class="card">
      <div class="collapse" id="collapseExample">
         <div class="card-body">
@@ -67,22 +62,25 @@
         </div>
       </div>
     </div>
-  {% dataproduct_list_for_target object %}
+    {% dataproduct_other_for_target object %}
+    {% dataproduct_thumbs_for_target object %}
   </div>
 
   <div class="col-md-4">
-    {% target_feature object %}
+    <div class="btn-group-vertical">
+      <a href="{% url 'tom_observations:create' facility='LCO' %}?target_id={{ object.id }}" class="btn  btn-outline-primary">Observe</a>
+      <a class="btn btn-outline-primary" data-toggle="collapse" href="#collapseExample" role="button" aria-expanded="false" aria-controls="collapseExample">Target Info</a>
+      <a class="btn btn-outline-primary" href="{% url 'tom_education:target_data' object.pk %}">Data</a>
+       <a href="{% url 'targets:detail' pk=target.id %}?update_status=True" title="Update status of observations for target" class="btn btn-outline-primary">Update Observations Status</a>
+     </div>
     <h4>Observations</h4>
-    <a href="{% url 'targets:detail' pk=target.id %}?update_status=True" title="Update status of observations for target" class="btn btn-primary">Update Observations Status</a>
     <table class="table table-striped">
-  <thead><tr><th>Status</th><th>Scheduled</th><th>Files</th><th></th></tr></thead>
+  <thead><tr><th>Status</th><th>Scheduled</th></tr></thead>
   <tbody>
   {% for observation in object.observationrecord_set.all %}
     <tr>
       <td>{% status_icon observation.status %}</td>
-      <td>{{ observation.scheduled_start }}</td>
-      <td>{{ observation.dataproduct_set.count }}</td>
-      <td><a href="{% url 'tom_observations:detail' observation.id %}">View</a></td>
+      <td><a href="{% url 'tom_observations:detail' observation.id %}">{{ observation.scheduled_start }}</a></td>
     </tr>
   {% endfor %}
 </table>

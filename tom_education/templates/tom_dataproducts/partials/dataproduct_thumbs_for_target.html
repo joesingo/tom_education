@@ -1,0 +1,11 @@
+{% load bootstrap4 %}
+{% load static tom_education_extras %}
+
+<h2>Latest Images</h2>
+<div class="row">
+{% for p in products %}
+<div class="col p-2">
+  <img src="{{p.get_preview}}" />
+</div>
+{% endfor %}
+</div>
