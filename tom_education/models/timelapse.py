@@ -182,7 +182,7 @@ class TimelapseDataProduct(DataProduct):
         tl = TimelapseDataProduct.objects.create(
             product_id=product_id,
             target=target,
-            tag=IMAGE_FILE[0],
+            tag='timelapse',
             fmt=fmt,
             fps=fps,
         )

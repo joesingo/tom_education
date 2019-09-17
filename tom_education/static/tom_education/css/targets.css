@@ -1,0 +1,28 @@
+.datap_info{
+  border-left:3px #aaa solid;
+  font-size: 80%;
+  color:#555;
+  padding-left: 5px;
+}
+
+.info-tfn {
+  border-color:#263c6f;
+}
+.info-ogg {
+  border-color:#3366dd;
+}
+.info-coj {
+  border-color:#fac900;
+}
+.info-cpt {
+  border-color:#004f00;
+}
+.info-elp {
+  border-color:#700000;
+}
+.info-lsc {
+  border-color:#f04e23;
+}
+.info-ngq {
+  border-color:#df0000;
+}

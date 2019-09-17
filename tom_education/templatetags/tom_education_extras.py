@@ -53,8 +53,8 @@ def dataproduct_thumbs_for_target(target):
 @register.inclusion_tag('tom_dataproducts/partials/dataproduct_other_for_target.html')
 def dataproduct_other_for_target(target):
     return {
-        'timelapse': target.dataproduct_set.filter(tag='Timelapse'),
-        'photometry' : target.dataproduct_set.filter(tag='Photometry'),
+        'timelapse': target.dataproduct_set.filter(tag='timelapse').latest(),
+        'photometry' : target.dataproduct_set.filter(tag='photometry'),
         'target': target
     }
 

@@ -7,9 +7,11 @@
 <div class="col p-2">
   <img src="{{p.get_preview}}" />
   {% with p.extra_data|dataproduct_extrainfo as info %}
-  {% for key, value in info.items %}
-  {{value}}
-  {% endfor %}
+  {% if info %}
+  <span class="datap_info info-{{info.siteid}}">
+    {{info.siteid|upper}} {{info.telid}} {{info.exp_time|floatformat:"0" }}s in {{info.filter}}
+  </span>
+  {% endif %}
   {% endwith %}
 </div>
 {% endfor %}

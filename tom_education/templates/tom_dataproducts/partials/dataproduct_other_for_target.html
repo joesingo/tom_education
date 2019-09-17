@@ -3,9 +3,9 @@
 
 <div class="row">
 {% if timelapse %}
-<h2>Timelapse</h2>
 <div class="col p-2">
-  <img src="{{timelapse.url}}" />
+  <img src="{{timelapse.data.url}}" class="img-fluid" />
+  <p>Timelapse of {{timelapse.timelapsedataproduct.frames.all.count}} frames, update {{timelapse.modified|timesince}} ago</p>
 </div>
 {% endif %}
 {% if photometry %}
