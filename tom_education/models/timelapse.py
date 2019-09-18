@@ -13,7 +13,7 @@ from django.db import models
 from fits2image.conversions import fits_to_jpg
 import imageio
 
-from tom_dataproducts.models import DataProduct, IMAGE_FILE
+from tom_dataproducts.models import DataProduct
 from tom_education.models.async_process import AsyncError, AsyncProcess, ASYNC_STATUS_CREATED
 from tom_education.utils import assert_valid_suffix
 
