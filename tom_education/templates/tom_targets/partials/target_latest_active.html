@@ -10,7 +10,14 @@
     {% with te.target as t %}
     <tr>
       <td><a href="{% url 'tom_education:target_detail' t.pk %}">{{t.identifier}} ({{t.name}})</a></td>
-      <td>{% if t.ra %}{{ t.ra|deg_to_sexigesimal:"hms" }}{% endif%}<br/>{% if t.dec %}{{ t.dec|deg_to_sexigesimal:"dms" }}{% endif%}</td>
+      <td>
+        {% if t.ra %}{{ t.ra|deg_to_sexigesimal:"hms" }}<br/>{% endif%}
+        {% if t.dec %}
+          {{ t.dec|deg_to_sexigesimal:"dms" }}
+        {% else %}
+          {{ t.get_type_display}}
+        {% endif%}
+      </td>
       <td>{{t.modified|timesince}}</td>
     </tr>
     {% endwith %}
