@@ -29,6 +29,13 @@ timelapses) are performed asynchronously in separate worker processes using
 [django_dramatiq](https://github.com/Bogdanp/django_dramatiq) and
 [Redis](https://redis.io).
 
+## Requirements
+
+In addition to the requirements listed in `setup.py` you will need:
+
+- A working TOM (see [TOM Toolkit](https://tomtoolkit.github.io/) documentation)
+- Python >= 3.6
+
 ## Installation
 
 1. Set up a TOM following the [getting started guide](https://tomtoolkit.github.io/docs/getting_started).
@@ -36,7 +43,6 @@ timelapses) are performed asynchronously in separate worker processes using
 2. Clone and install this package with `pip`:
 
 ```
-git clone <this repo>
 pip install tom_education
 ```
 
@@ -80,4 +86,13 @@ the tests).
 ```
 pip install tomtoolkit[test]
 python manage.py test tom_education
+```
+
+### Install Development version
+
+Clone this repo and install the package with `pip`:
+
+```
+git clone https://github.com/joesingo/tom_education
+pip install tom_education
 ```
