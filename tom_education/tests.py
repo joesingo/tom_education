@@ -15,7 +15,7 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models.query import QuerySet
 from django.urls import reverse
-from django.test import TestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.contrib.auth.models import User
 from guardian.shortcuts import assign_perm
 import imageio
@@ -245,35 +245,6 @@ class ObservationTemplateTestCase(TomEducationTestCase):
         self.assertEqual(template.facility, self.facility)
         self.assertEqual(json.loads(template.fields), fields)
 
-    def test_invalid_template_name(self, mock):
-        template = ObservationTemplate.objects.create(
-            name="cool-template-name",
-            target=self.target,
-            facility=self.facility,
-            fields='...'
-        )
-
-        # The expected IntegrityError will break this test's DB transaction,
-        # which prevents DB operations later on. Use atomic() to ensure changes
-        # are rolled back
-        with transaction.atomic():
-            response = self.client.post(self.get_base_url(), {
-                'test_input': 'cool-template-name',
-                'extra_field': 'blah',
-                'another_extra_field': 4,
-                'target_id': self.target.pk,
-                'facility': self.facility,
-                'create-template': 'yep'
-            })
-        self.assertEqual(response.status_code, 200)
-
-        err_msg = 'Template name "cool-template-name" already in use'
-        self.assertIn(err_msg, response.context['form'].errors['__all__'])
-
-        # Double check that no template was created
-        temp_count = ObservationTemplate.objects.all().count()
-        self.assertEqual(temp_count, 1)
-
     @patch('tom_education.models.observation_template.datetime')
     def test_instantiate_template(self, dt_mock, _):
         dt_mock.now.return_value = datetime(
@@ -299,6 +270,50 @@ class ObservationTemplateTestCase(TomEducationTestCase):
     def test_extra_form_context(self, mock):
         response = self.client.get(self.get_url(self.target))
         self.assertIn('extra_variable_from_form', response.context)
+
+
+# The following test causes an error if run in a DB transaction since it
+# causes an IntegrityError, after which no more DB queries can be performed.
+# To work around this, put the test in its own SimpleTestCase so that no
+# transaction is used
+@override_settings(TOM_FACILITY_CLASSES=FAKE_FACILITIES)
+@patch('tom_education.models.ObservationTemplate.get_identifier_field', return_value='test_input')
+@patch('tom_education.views.TemplatedObservationCreateView.supported_facilities', ('TemplateFake',))
+class InvalidObservationTemplateNameTestCase(SimpleTestCase):
+    databases = '__all__'
+
+    def setUp(self):
+        super().setUp()
+
+    def test_invalid_template_name(self, mock):
+        user = User.objects.create(username='someuser', password='somepass', is_staff=True)
+        self.client.force_login(user)
+
+        target = Target.objects.create(identifier='target123', name='my target')
+        template = ObservationTemplate.objects.create(
+            name="cool-template-name",
+            target=target,
+            facility='TemplateFake',
+            fields='...'
+        )
+
+        url = reverse('tom_education:create_obs', kwargs={'facility': 'TemplateFake'})
+        response = self.client.post(url, {
+            'test_input': 'cool-template-name',
+            'extra_field': 'blah',
+            'another_extra_field': 4,
+            'target_id': target.pk,
+            'facility': 'TemplateFake',
+            'create-template': 'yep'
+        })
+        self.assertEqual(response.status_code, 200)
+
+        err_msg = 'Template name "cool-template-name" already in use'
+        self.assertIn(err_msg, response.context['form'].errors['__all__'])
+
+        # Double check that no template was created
+        temp_count = ObservationTemplate.objects.all().count()
+        self.assertEqual(temp_count, 1)
 
 
 @override_settings(TOM_FACILITY_CLASSES=['tom_observations.tests.utils.FakeFacility'])

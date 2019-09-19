@@ -1,17 +1,8 @@
 from django import forms
 from django.core.exceptions import ValidationError
-from crispy_forms.layout import Button, Layout, HTML
 from tom_dataproducts.models import DataProduct, DataProductGroup
 
 from tom_education.models import ObservationTemplate
-
-
-class SecondarySubmit(Button):
-    """
-    Button that has the appearance of a regular button, but will submit a form.
-    Used to differentiate between primary and secondary submit buttons
-    """
-    input_type = 'submit'
 
 
 def make_templated_form(base_class):
@@ -28,36 +19,34 @@ def make_templated_form(base_class):
 
         def __init__(self, *args, **kwargs):
             self.form_url = kwargs.pop('form_url')
-            show_create = kwargs.pop('show_create')
-
+            self.show_create = kwargs.pop('show_create')
             super().__init__(*args, **kwargs)
 
-            if show_create:
-                self.helper.add_input(SecondarySubmit(*self.new_template_action))
+            # If the base form uses crispy, modify the form helper to not
+            # include outer <form> tags (since we include these manually in the
+            # template)
+            if hasattr(self, 'helper'):
+                self.helper.form_tag = None
 
-            # Insert template links after common layout
-            if self.helper.layout:
-                self.helper.layout.insert(1, self.pre_layout())
-            else:
-                self.helper.layout = Layout(self.common_layout, self.pre_layout())
+        def get_extra_context(self):
+            context = super().get_extra_context()
 
-        def pre_layout(self):
-            """
-            Add links at top of form to instantiate fields from a template
-            """
+            # Add template names and instantiation URLs to the context
             templates = ObservationTemplate.objects.filter(
                 target__pk=self.initial['target_id'],
                 facility=self.initial['facility']
             )
-            if templates:
-                links = []
-                for template in templates:
-                    links.append('<a href="{url}">{text}</a>'.format(
-                        url=template.get_create_url(self.form_url),
-                        text=template.name
-                    ))
-                return Layout(HTML('Create from template: '), HTML(', '.join(links)))
-            return Layout()
+            context['templates'] = []
+            for template in templates:
+                url = template.get_create_url(self.form_url)
+                name = template.name
+                context['templates'].append((name, url))
+
+            # Add info for button to create new template
+            context['show_new_template_action'] = self.show_create
+            context['new_template_action_button'] = self.new_template_action
+            return context
+
     return F
 
 

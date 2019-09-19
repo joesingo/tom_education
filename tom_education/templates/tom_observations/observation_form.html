@@ -5,10 +5,63 @@
 <h2>&crarr;&nbsp;<a href="{% url 'tom_education:target_detail' target.pk %}">{{target.identifier}} - {{ target.name }}</a></h2>
 <h3>Submit an observation to {{ form.facility.value }}</h3>
 
-{% comment %}
-    For the LCO observation form, include JavaScript to filter 'filters'
-    dropdown based on the selected instrument #}
-{% endcomment %}
+<p>
+    Create from template:
+    {% for name, url in templates %}
+        <a href="{{ url }}" title="Create observation from template '{{ name }}'">
+            {{ name }}</a>{% if not forloop.last %},{% endif %}
+    {% endfor %}
+</p>
+
+<form action="" method="post">
+    {% if form.facility.value != 'LCO' %}
+        {% crispy form %}
+    {% else %}
+        {# Render the LCO form 'by hand' instead of with crispy for more flexibility over the layout #}
+        {% csrf_token %}
+
+        {% bootstrap_form_errors form %}
+
+        {{ form.facility }}
+        {{ form.target_id }}
+        {{ form.observation_type }}
+
+        <div class="form-row">
+            <div class="col">
+                {% bootstrap_field form.name %}
+                {% bootstrap_field form.proposal %}
+                {% bootstrap_field form.ipp_value %}
+                {% bootstrap_field form.observation_mode %}
+                {% bootstrap_field form.start %}
+                {% bootstrap_field form.end %}
+            </div>
+            <div class="col">
+                {% bootstrap_field form.instrument_type %}
+                {% bootstrap_field form.filter %}
+                {% bootstrap_field form.exposure_count %}
+                {% bootstrap_field form.exposure_time %}
+                {% bootstrap_field form.max_airmass %}
+            </div>
+        </div>
+    {% endif %}
+
+    {% buttons %}
+        {# Show submit button if we are not using crispy #}
+        {% if form.facility.value == 'LCO' %}
+            {# TODO: make submit and create-new buttons appear side-by-side #}
+            {# with crispy (non-LCO) form, instead of in separate <div>s #}
+            {% bootstrap_button "Submit" button_type="submit" button_class="btn-primary" %}
+        {% endif %}
+
+        {% if show_new_template_action %}
+            {% with new_template_action_button as b %}
+                {% bootstrap_button b.1 button_type="submit" name=b.0 %}
+            {% endwith %}
+        {% endif %}
+    {% endbuttons %}
+</form>
+
+{# For the LCO form, include JavaScript to filter 'filters' dropdown based on the selected instrument #}
 {% if instrument_filters %}
     <script type="application/json" id="instrument-filters-json">
     {
@@ -18,5 +71,4 @@
     <script type='text/javascript' src='{% static 'tom_education/lco_instrument_filtering.js' %}'></script>
 {% endif %}
 
-{% crispy form %}
 {% endblock %}
