@@ -4,6 +4,8 @@ from django import template
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 from tom_dataproducts.models import DataProductGroup
+from tom_targets.models import TargetExtra
+from tom_observations.models import ObservationRecord
 
 from tom_education.constants import RAW_FILE_EXTENSION
 
@@ -65,3 +67,12 @@ def dataproduct_extrainfo(text):
         return json.loads(text)
     except json.JSONDecodeError:
         return None
+
+@register.inclusion_tag('tom_targets/partials/target_latest_active.html')
+def target_latest_active():
+    return { 'targets' : TargetExtra.objects.filter(key='active', value=True)}
+
+@register.inclusion_tag('tom_observations/partials/observationrecord_latest.html')
+def observationrecord_latest(value=10):
+    value = int(value)
+    return { 'observationrecords' : ObservationRecord.objects.all().order_by('-modified')[:value]}

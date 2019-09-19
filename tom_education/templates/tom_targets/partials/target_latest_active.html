@@ -1,0 +1,31 @@
+{% load targets_extras %}
+<h2>Active Targets</h2>
+<table class="table">
+  <thead>
+    <tr>
+      <th></th><th>RA/Dec</th><th>Last Update</th>
+    </tr>
+  </thead>
+  {% for te in targets %}
+    {% with te.target as t %}
+    <tr>
+      <td><a href="{% url 'tom_education:target_detail' t.pk %}">{{t.identifier}} ({{t.name}})</a></td>
+      <td>
+        {% if t.ra %}{{ t.ra|deg_to_sexigesimal:"hms" }}<br/>{% endif%}
+        {% if t.dec %}
+          {{ t.dec|deg_to_sexigesimal:"dms" }}
+        {% else %}
+          {{ t.get_type_display}}
+        {% endif%}
+      </td>
+      <td>{{t.modified|timesince}}</td>
+    </tr>
+    {% endwith %}
+  {% empty %}
+  <tr>
+    <td colspan=3>
+      No active targets
+      </td>
+  </tr>
+  {% endfor %}
+</table>
