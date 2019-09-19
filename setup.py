@@ -15,7 +15,7 @@ setup(
     author_email='joesingo@gmail.com',
     install_requires=[
         'astroscrappy==1.0.8',
-        'tomtoolkit==0.8.0',
+        'tomtoolkit @ git+https://github.com/TOMToolkit/tom_base.git@development#egg=tomtoolkit',
         'numpy',
         'imageio-ffmpeg==0.3.0',
         'imageio==2.5.0',
