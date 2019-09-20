@@ -21,7 +21,10 @@ Plugin for the TOM Toolkit adding features intended for educational use.
   targets, timelapses, pipeline runs, and allow observations to be submitted.
 
 * [Observation alerts](doc/observation_alerts.md): Associate an email address
-  with an observation to receive email updates when data is available
+  with an observation to receive email updates when data is available.
+
+* [Observations with multiple instrument configurations](doc/multiple_instrument_configs.md):
+  Submit LCO observations with multiple filters and exposure settings.
 
 Long-running tasks (such as running data pipelines and creating large
 timelapses) are performed asynchronously in separate worker processes using

@@ -76,3 +76,10 @@ def target_latest_active():
 def observationrecord_latest(value=10):
     value = int(value)
     return { 'observationrecords' : ObservationRecord.objects.all().order_by('-modified')[:value]}
+
+@register.filter
+def get_form_field(form, label):
+    """
+    Return a bound field with the given label from a form
+    """
+    return form.fields[label].get_bound_field(form, label)

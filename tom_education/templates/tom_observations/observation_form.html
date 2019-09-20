@@ -1,16 +1,18 @@
 {% extends 'tom_common/base.html' %}
-{% load bootstrap4 crispy_forms_tags static %}
+{% load bootstrap4 crispy_forms_tags static tom_education_extras %}
 {% block title %}Submit Observation{% endblock %}
 {% block content %}
 <h2>&crarr;&nbsp;<a href="{% url 'tom_education:target_detail' target.pk %}">{{target.identifier}} - {{ target.name }}</a></h2>
 <h3>Submit an observation to {{ form.facility.value }}</h3>
 
 <p>
-    Create from template:
-    {% for name, url in templates %}
-        <a href="{{ url }}" title="Create observation from template '{{ name }}'">
-            {{ name }}</a>{% if not forloop.last %},{% endif %}
-    {% endfor %}
+    {% if templates %}
+        Create from template:
+        {% for name, url in templates %}
+            <a href="{{ url }}" title="Create observation from template '{{ name }}'">
+                {{ name }}</a>{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    {% endif %}
 </p>
 
 <form action="" method="post">
@@ -32,18 +34,39 @@
                 {% bootstrap_field form.proposal %}
                 {% bootstrap_field form.ipp_value %}
                 {% bootstrap_field form.observation_mode %}
-                {% bootstrap_field form.start %}
-                {% bootstrap_field form.end %}
             </div>
             <div class="col">
                 {% bootstrap_field form.instrument_type %}
-                {% bootstrap_field form.filter %}
-                {% bootstrap_field form.exposure_count %}
-                {% bootstrap_field form.exposure_time %}
                 {% bootstrap_field form.max_airmass %}
+                {% bootstrap_field form.start %}
+                {% bootstrap_field form.end %}
             </div>
         </div>
     {% endif %}
+
+    <h4>Filters</h4>
+
+    <table id="filters-table">
+        <thead>
+            <tr>
+                <th></th>
+                <th>Exposure count</th>
+                <th>Exposure time</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for filter_code, filter_name, keys in filter_fields %}
+            <tr data-code="{{ filter_code }}">
+                <th>{{ filter_name }}</th>
+                {% for key in keys %}
+                    <td>
+                        {% bootstrap_field form|get_form_field:key show_label=False placeholder="" %}
+                    </td>
+                {% endfor %}
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
 
     {% buttons %}
         {# Show submit button if we are not using crispy #}
@@ -61,7 +84,7 @@
     {% endbuttons %}
 </form>
 
-{# For the LCO form, include JavaScript to filter 'filters' dropdown based on the selected instrument #}
+{# For the LCO form, include JavaScript to filter 'filters' based on the selected instrument #}
 {% if instrument_filters %}
     <script type="application/json" id="instrument-filters-json">
     {

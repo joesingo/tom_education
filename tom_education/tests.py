@@ -1790,8 +1790,112 @@ class DataProductDeleteMultipleViewTestCase(DataProductTestCase):
         self.assertEqual(str(messages[0]), 'Deleted 2 data products')
 
 
+def mock_instruments(_self):
+    return {
+        'myinstr': {
+            'type': 'IMAGE',
+            'class': '2M0',
+            'name': 'test instrument',
+            'optical_elements': {
+                'filters': [
+                    {'code': 'redfilter', 'name': 'RED', 'schedulable': True},
+                    {'code': 'greenfilter', 'name': 'GREEN', 'schedulable': True},
+                    {'code': 'bluefilter', 'name': 'BLUE', 'schedulable': True},
+                ]
+            }
+        }
+    }
+
+
+def mock_proposals(_self):
+    return [('myprop', 'some proposal')]
+
+
+@patch('tom_education.facilities.EducationLCOForm._get_instruments', mock_instruments)
+@patch('tom_education.facilities.EducationLCOForm.proposal_choices', mock_proposals)
+@patch('tom_education.facilities.EducationLCOFacility.validate_observation', return_value=None)
+@patch('tom_education.facilities.EducationLCOFacility.submit_observation', return_value=[1234])
 class EducationLCOFacilityTestCase(TomEducationTestCase):
-    def test_instrument_filter_info(self):
+    def setUp(self):
+        super().setUp()
+        self.target = Target.objects.create(identifier='target123', name='my target')
+        self.url = reverse('tom_education:create_obs', kwargs={'facility': 'LCO'})
+        self.user = User.objects.create_user(username='test', email='test@example.com')
+        self.client.force_login(self.user)
+
+        # Base form data excluding filter/exposure fields
+        self.base_form_data = {
+            'target_id': self.target.pk,
+            'facility': 'LCO',
+            'name': 'someobs',
+            'proposal': 'myprop',
+            'ipp_value': '1.05',
+            'observation_mode': 'NORMAL',
+            'max_airmass': '1.6',
+            'start': '2000-01-01',
+            'end': '2001-01-01',
+            'instrument_type': 'myinstr'
+        }
+
+    def test_multiple_instrument_configurations(self, _validate_mock, submit_mock):
+        response = self.client.post(self.url, data={
+            **self.base_form_data,
+            'redfilter_exposure_count': '1',
+            'redfilter_exposure_time': '2',
+
+            'bluefilter_exposure_count': '3',
+            'bluefilter_exposure_time': '4',
+        })
+        # Check payload was submitted with correct-looking args
+        submit_mock.assert_called_once()
+        args, kwargs = submit_mock.call_args
+        self.assertEqual(len(args), 1)
+        self.assertEqual(kwargs, {})
+        # Get submitted payload and check instrument configurations were
+        # correct
+        (payload,) = args
+        configs = payload['requests'][0]['configurations']
+        self.assertEqual(len(configs), 2)
+        instr_configs = [config['instrument_configs'][0] for config in configs]
+        red_instr_config = {
+            'exposure_count': 1,
+            'exposure_time': 2,
+            'optical_elements': {'filter': 'redfilter'}
+        }
+        blue_instr_config = {
+            'exposure_count': 3,
+            'exposure_time': 4,
+            'optical_elements': {'filter': 'bluefilter'}
+        }
+        self.assertIn(red_instr_config, instr_configs)
+        self.assertIn(blue_instr_config, instr_configs)
+
+    def test_exposure_settings(self, _validate_mock, submit_mock):
+        # Check that we get an error if no filters are specified
+        response = self.client.post(self.url, data=self.base_form_data)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['form'].errors['__all__'], ['No filters selected'])
+
+        # Check that we get an error if just time or just count are given
+        response = self.client.post(self.url, data={
+            **self.base_form_data,
+            # Omit count for red
+            'redfilter_exposure_time': '2',
+            # Omit time for blue
+            'bluefilter_exposure_count': '3',
+
+            # Specify green properly
+            'greenfilter_exposure_time': '20',
+            'greenfilter_exposure_count': '19',
+        })
+        self.assertEqual(response.status_code, 200)
+        expected_msgs = {
+            "Exposure count missing for filter 'RED'",
+            "Exposure time missing for filter 'BLUE'"
+        }
+        self.assertEqual(set(response.context['form'].errors['__all__']), expected_msgs)
+
+    def test_instrument_filter_info(self, _validate_mock, _submit_mock):
        # Construct dict that looks like a response from the LCO instruments API
         instr_response = {
             'instr1': {
