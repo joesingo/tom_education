@@ -2,30 +2,39 @@
 
  [![Build Status](https://travis-ci.org/joesingo/tom_education.svg?branch=master)](https://travis-ci.org/joesingo/tom_education)
 
-Plugin for the TOM Toolkit adding features intended for educational use.
+TOM Education is a plugin for the TOM Toolkit adding features intended for
+educational use. [See the
+documentation](https://tom-education.readthedocs.io/en/latest/) for more
+information.
 
 ## Features
 
-* [Templated observation forms](docs/templated_observation_forms.md): Save the
-  fields in the observation creation form as a template to make it easier to
-  create multiple observations with similar parameters.
+* [Templated observation
+  forms](https://tom-education.readthedocs.io/en/latest/templated_observation_forms.html):
+  Save the fields in the observation creation form as a template to make it
+  easier to create multiple observations with similar parameters.
 
-* [Timelapses](docs/timelapses.md): Create a timelapse of FITS data products for a
- target. Timelapses can be created as animated GIFs or MP4 or WebM videos.
+* [Timelapses](https://tom-education.readthedocs.io/en/latest/timelapses.html):
+  Create a timelapse of FITS data products for a target. Timelapses can be
+  created as animated GIFs or MP4 or WebM videos.
 
-* [Data gallery](docs/gallery.md): View a gallery of thumbnails of FITS files which
-  allows files to be selected and added to a data product group.
+* [Data gallery](https://tom-education.readthedocs.io/en/latest/gallery.html):
+  View a gallery of thumbnails of FITS files which allows files to be selected
+  and added to a data product group.
 
-* [Data pipelines](docs/pipelines.md): Run a user-supplied data pipeline on a
-  selection of files and save the outputs as data products in the TOM.
+* [Data pipelines](https://tom-education.readthedocs.io/en/latest/pipelines.html):
+  Run a user-supplied data pipeline on a selection of files and save the
+  outputs as data products in the TOM.
 
-* [API endpoints](docs/apis.md): REST API endpoints give information about
-  targets, timelapses, pipeline runs, and allow observations to be submitted.
+* [API endpoints](https://tom-education.readthedocs.io/en/latest/apis.html):
+  REST API endpoints give information about targets, timelapses, pipeline runs,
+  and allow observations to be submitted.
 
-* [Observation alerts](docs/observation_alerts.md): Associate an email address
-  with an observation to receive email updates when data is available.
+* [Observation alerts](https://tom-education.readthedocs.io/en/latest/observation_alerts.html):
+   Associate an email address with an observation to receive email updates when
+   data is available.
 
-* [Observations with multiple instrument configurations](docs/multiple_instrument_configs.md):
+* [Observations with multiple instrument configurations](https://tom-education.readthedocs.io/en/latest/multiple_instrument_configs.html):
   Submit LCO observations with multiple filters and exposure settings.
 
 Long-running tasks (such as running data pipelines and creating large
