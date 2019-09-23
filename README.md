@@ -99,5 +99,5 @@ Clone this repo and install the package with `pip`:
 
 ```
 git clone https://github.com/joesingo/tom_education
-pip install tom_education
+pip install -e tom_education
 ```
