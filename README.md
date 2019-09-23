@@ -1,5 +1,7 @@
 # tom_education
 
+ [![Build Status](https://travis-ci.org/joesingo/tom_education.svg?branch=master)](https://travis-ci.org/joesingo/tom_education)
+
 Plugin for the TOM Toolkit adding features intended for educational use.
 
 ## Features
