@@ -20,15 +20,15 @@ The API endpoints are:
   target.
 
 * [Pipeline process API](#pipeline-process-api): An extension of the async
-  process API for [pipeline processes](/doc/pipelines.md).
+  process API for [pipeline processes](/docs/pipelines.md).
 
 * [Target detail and timelapses API](#target-detail-and-timelapses-api):
   Return a subset of fields for a `Target` object and a listing of its
   associated timelapses.
 
 * [Create observation alert API](#create-observation-alert-api): Create an
-  observation and [observation alert](/doc/observation_alerts.md) by
-  instantiating an [observation template](/doc/templated_observation_forms.md)
+  observation and [observation alert](/docs/observation_alerts.md) by
+  instantiating an [observation template](/docs/templated_observation_forms.md)
   for a target.
 
 ## Async process API
@@ -91,7 +91,7 @@ The API endpoints are:
 objects from the async process API and the following additional fields:
 
 * `logs`: log output from the pipeline process (see the [pipeline documentation
-  on logging](/doc/pipelines.md#log-output))
+  on logging](/docs/pipelines.md#log-output))
 * `group_name`: the name of the `DataProductGroup` which stores the outputs of
   this pipeline process, or `null` if the group has not yet been created.
 * `group_url`: relative URL to the info page for the associated

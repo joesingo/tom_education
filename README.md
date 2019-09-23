@@ -6,26 +6,26 @@ Plugin for the TOM Toolkit adding features intended for educational use.
 
 ## Features
 
-* [Templated observation forms](doc/templated_observation_forms.md): Save the
+* [Templated observation forms](docs/templated_observation_forms.md): Save the
   fields in the observation creation form as a template to make it easier to
   create multiple observations with similar parameters.
 
-* [Timelapses](doc/timelapses.md): Create a timelapse of FITS data products for a
+* [Timelapses](docs/timelapses.md): Create a timelapse of FITS data products for a
  target. Timelapses can be created as animated GIFs or MP4 or WebM videos.
 
-* [Data gallery](doc/gallery.md): View a gallery of thumbnails of FITS files which
+* [Data gallery](docs/gallery.md): View a gallery of thumbnails of FITS files which
   allows files to be selected and added to a data product group.
 
-* [Data pipelines](doc/pipelines.md): Run a user-supplied data pipeline on a
+* [Data pipelines](docs/pipelines.md): Run a user-supplied data pipeline on a
   selection of files and save the outputs as data products in the TOM.
 
-* [API endpoints](doc/apis.md): REST API endpoints give information about
+* [API endpoints](docs/apis.md): REST API endpoints give information about
   targets, timelapses, pipeline runs, and allow observations to be submitted.
 
-* [Observation alerts](doc/observation_alerts.md): Associate an email address
+* [Observation alerts](docs/observation_alerts.md): Associate an email address
   with an observation to receive email updates when data is available.
 
-* [Observations with multiple instrument configurations](doc/multiple_instrument_configs.md):
+* [Observations with multiple instrument configurations](docs/multiple_instrument_configs.md):
   Submit LCO observations with multiple filters and exposure settings.
 
 Long-running tasks (such as running data pipelines and creating large

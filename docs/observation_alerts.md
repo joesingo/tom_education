@@ -2,7 +2,7 @@
 
 An *observation alert* is a combination of an email address and an observation
 record. Alerts can be created through the
-[API](/doc/apis.md#create-observation-alert-api).
+[API](/docs/apis.md#create-observation-alert-api).
 
 To process alerts and send email updates, a management command
 `process_observation_alerts` is available:
@@ -15,7 +15,7 @@ This will:
 
 * Update the status of all observations associated with an alert
 * Download new data, if available
-* Create a [timelapse](/doc/timelapses.md) for each target with new data, and
+* Create a [timelapse](/docs/timelapses.md) for each target with new data, and
   delete old timelapses
 * Send an email for each alert whose observation had new data
 
