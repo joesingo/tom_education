@@ -9,7 +9,7 @@ install:
   - pip install .[test]
 
   # TODO: remove this when tom_base is fixed
-  - pip uninstall tomtoolkit
+  - pip uninstall -y tomtoolkit
   - pip install git+git+https://github.com/joesingo/tom_base@hint-fixes
 
   # Create Django project
