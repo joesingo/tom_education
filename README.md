@@ -1,6 +1,7 @@
 # tom_education
 
  [![Build Status](https://travis-ci.org/joesingo/tom_education.svg?branch=master)](https://travis-ci.org/joesingo/tom_education)
+[![Documentation Status](https://readthedocs.org/projects/tom-education/badge/?version=latest)](https://tom-education.readthedocs.io/en/latest/?badge=latest)
 
 TOM Education is a plugin for the TOM Toolkit adding features intended for
 educational use. [See the
