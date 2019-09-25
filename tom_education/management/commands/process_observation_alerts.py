@@ -45,7 +45,7 @@ class Command(BaseCommand):
             if not prods.exists():
                 continue
             new_tl = TimelapseDataProduct.create_timestamped(target, prods)
-            self.stdout.write('Creating timelapse for target {}'.format(target.identifier))
+            self.stdout.write('Creating timelapse for target {}'.format(target.name))
             new_tl.write()
 
             # Delete old timelapses

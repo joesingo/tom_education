@@ -145,7 +145,7 @@ class ObservationTemplateTestCase(TomEducationTestCase):
         super().setUpClass()
         cls.user = User.objects.create(username='someuser', password='somepass', is_staff=True)
         cls.non_staff = User.objects.create(username='another', password='aaa')
-        cls.target = Target.objects.create(identifier='target123', name='my target')
+        cls.target = Target.objects.create(name='my target')
 
     def setUp(self):
         super().setUp()
@@ -182,7 +182,7 @@ class ObservationTemplateTestCase(TomEducationTestCase):
 
         # Go to create page for a different target: template should not be
         # shown
-        target2 = Target.objects.create(identifier='anotherone', name='another')
+        target2 = Target.objects.create(name='another')
         response2 = self.client.get(self.get_url(target2))
         self.assertEqual(response2.status_code, 200)
         self.assertNotIn(b'mytemplate', response2.content)
@@ -289,7 +289,7 @@ class InvalidObservationTemplateNameTestCase(SimpleTestCase):
         user = User.objects.create(username='someuser', password='somepass', is_staff=True)
         self.client.force_login(user)
 
-        target = Target.objects.create(identifier='target123', name='my target')
+        target = Target.objects.create(name='my target')
         template = ObservationTemplate.objects.create(
             name="cool-template-name",
             target=target,
@@ -329,7 +329,7 @@ class DataProductTestCase(TomEducationTestCase):
     def setUpClass(cls):
         super().setUpClass()
 
-        cls.target = Target.objects.create(identifier='target123', name='my target')
+        cls.target = Target.objects.create(name='my target')
         cls.observation_record = ObservingRecordFactory.create(
             target_id=cls.target.id,
             facility=FakeFacility.name,
@@ -515,7 +515,7 @@ class TimelapseTestCase(DataProductTestCase):
         self.assertEqual(tldp.target, self.target)
         self.assertEqual(tldp.observation_record, None)
         self.assertEqual(tldp.tag, 'timelapse')
-        expected_id = 'timelapse_{}_2019-01-02-030405'.format(self.target.identifier)
+        expected_id = 'timelapse_{}_2019-01-02-030405'.format(self.target.name)
         expected_filename = expected_id + '.gif'
         self.assertEqual(tldp.product_id, expected_id)
         self.assertTrue(os.path.basename(tldp.data.name), expected_filename)
@@ -692,7 +692,7 @@ class TimelapseTestCase(DataProductTestCase):
 
         # Make a product in the group but for a different target: it should
         # not be included in the timelapse
-        other_target = Target.objects.create(identifier='someothertarget')
+        other_target = Target.objects.create(name='someothertarget')
         other_prod = DataProduct.objects.create(product_id='someotherproduct', target=other_target)
         other_prod.group.add(group)
         other_prod.save()
@@ -712,7 +712,7 @@ class TimelapseTestCase(DataProductTestCase):
 
         # Check the command output
         output = buf.getvalue()
-        self.assertTrue('Creating timelapse of 2 files for target target123 (my target)...' in output)
+        self.assertTrue("Creating timelapse of 2 files for target 'my target'..." in output)
         self.assertTrue('Created timelapse' in output)
 
     def test_management_command_no_dataproducts(self):
@@ -846,7 +846,7 @@ class GalleryTestCase(TomEducationTestCase):
     def setUp(self):
         super().setUp()
         self.url = reverse('tom_education:gallery')
-        self.target = Target.objects.create(identifier='target123', name='my target')
+        self.target = Target.objects.create(name='my target')
         self.prods = []
 
         image_data = np.ones((500, 4), dtype=np.float)
@@ -948,7 +948,7 @@ class AsyncStatusApiTestCase(TomEducationTestCase):
         views_dt_mock.now.return_value = current_time
 
         django_mock.return_value = create_time1
-        target = Target.objects.create(identifier='target123', name='my target')
+        target = Target.objects.create(name='my target')
         proc = TimelapseProcess.objects.create(
             identifier='hello',
             target=target,
@@ -1073,8 +1073,8 @@ class PipelineTestCase(TomEducationTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        target_identifier = 't{}'.format(datetime.now().timestamp())
-        cls.target = Target.objects.create(identifier=target_identifier, name='my target')
+        target_name = 't{}'.format(datetime.now().timestamp())
+        cls.target = Target.objects.create(name=target_name)
         cls.prods = [DataProduct.objects.create(product_id=f'test_{i}', target=cls.target)
                      for i in range(4)]
         cls.pks = [str(prod.pk) for prod in cls.prods]
@@ -1406,12 +1406,10 @@ class TargetDetailApiTestCase(TomEducationTestCase):
     def setUp(self):
         super().setUp()
         now = datetime.now().timestamp()
-        self.target_identifier = f'target_{now}'
+        self.target_name = f'target_{now}'
         self.target = Target(
-            identifier=self.target_identifier,
-            name='my target',
-            name2='my target2',
-            name3='my target3',
+            name=self.target_name,
+            ra=1.2345
         )
         self.target.save(extras={'extrafield': 'extravalue'})
 
@@ -1482,10 +1480,8 @@ class TargetDetailApiTestCase(TomEducationTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {
             'target': {
-                'identifier': self.target_identifier,
-                'name': 'my target',
-                'name2': 'my target2',
-                'name3': 'my target3',
+                'name': self.target_name,
+                # Note: ra should be missing
                 'extra_fields': {'extrafield': 'extravalue'},
             },
             # Should be sorted: most recent first
@@ -1517,7 +1513,7 @@ class TargetDetailApiTestCase(TomEducationTestCase):
 class ObservationAlertApiTestCase(TomEducationTestCase):
     def setUp(self):
         super().setUp()
-        self.target = Target.objects.create(identifier='target123', name='my target')
+        self.target = Target.objects.create(name='my target')
         self.template = ObservationTemplate.objects.create(
             name='mytemplate',
             target=self.target,
@@ -1608,7 +1604,7 @@ class ObservationAlertApiTestCase(TomEducationTestCase):
         }, content_type='application/json')
         self.assertEqual(response.status_code, 404)
         self.assertEqual(response.json(), {
-            'detail': "Template 'tempo' not found for target 'target123' and facility 'TemplateFake'"
+            'detail': "Template 'tempo' not found for target 'my target' and facility 'TemplateFake'"
         })
 
     def test_invalid_form(self, _mock):
@@ -1637,7 +1633,7 @@ class ProcessObservationAlertsTestCase(TomEducationTestCase):
     def setUpClass(cls):
         super().setUpClass()
         target_ident = 'target_{}'.format(datetime.now().strftime('%s'))
-        cls.target = Target.objects.create(identifier=target_ident, name='my target')
+        cls.target = Target.objects.create(name='my target')
         cls.ob = ObservingRecordFactory.create(
             target_id=cls.target.pk,
             facility=FakeTemplateFacility.name,
@@ -1818,7 +1814,7 @@ def mock_proposals(_self):
 class EducationLCOFacilityTestCase(TomEducationTestCase):
     def setUp(self):
         super().setUp()
-        self.target = Target.objects.create(identifier='target123', name='my target')
+        self.target = Target.objects.create(name='my target')
         self.url = reverse('tom_education:create_obs', kwargs={'facility': 'LCO'})
         self.user = User.objects.create_user(username='test', email='test@example.com')
         self.client.force_login(self.user)
@@ -1930,9 +1926,7 @@ class EducationTargetViewsTestCase(TomEducationTestCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.user = User.objects.create_user(username='test', email='test@example.com')
-        cls.target = Target.objects.create(
-            identifier='target123', name='my target', type=Target.NON_SIDEREAL
-        )
+        cls.target = Target.objects.create(name='my target', type=Target.NON_SIDEREAL)
         assign_perm('tom_targets.change_target', cls.user, cls.target)
 
     def setUp(self):

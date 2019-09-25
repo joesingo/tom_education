@@ -8,10 +8,6 @@ install:
   - sudo apt-get install gfortran
   - pip install .[test]
 
-  # TODO: remove this when tom_base is fixed
-  - pip uninstall -y tomtoolkit
-  - pip install git+https://github.com/joesingo/tom_base@hint-fixes
-
   # Create Django project
   - django-admin startproject blank_tom
   - cd blank_tom

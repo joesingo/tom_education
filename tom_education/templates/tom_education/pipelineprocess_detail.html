@@ -1,7 +1,7 @@
 {% extends 'tom_common/base.html' %}
 {% load static tom_education_extras %}
 
-{% block title %}Pipeline process {{ object.identifer }}{% endblock %}
+{% block title %}Pipeline process {{ object.identifier }}{% endblock %}
 
 {% block additional_css %}
 <link rel="stylesheet" href="{% static 'tom_education/css/pipelineprocess_detail.css' %}">
@@ -9,7 +9,7 @@
 
 {% block content %}
 
-<h2>{{ object.name }}</h2>
+<h2>{{ object.identifier }}</h2>
 
 <div class="row">
     <div class="col-md-4">

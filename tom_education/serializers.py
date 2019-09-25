@@ -72,7 +72,7 @@ class TargetSerializer(serializers.ModelSerializer):
     """
     class Meta:
         model = Target
-        fields = ['identifier', 'name', 'name2', 'name3', 'extra_fields']
+        fields = ['name', 'extra_fields']
 
 
 class TimelapseSerializer(serializers.Serializer):

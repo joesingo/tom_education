@@ -228,7 +228,7 @@ class ActionableTargetDetailView(FormMixin, TargetDetailView):
         now = datetime.now()
         date_str = now.strftime('%Y-%m-%d-%H%M%S')
         code = pipeline_cls.short_name
-        identifier = f'{code}_{target.identifier}_{date_str}'
+        identifier = f'{code}_{target.name}_{date_str}'
         process = pipeline_cls.objects.create(
             identifier=identifier,
             target=target,
@@ -410,7 +410,7 @@ class ObservationAlertApiCreateView(CreateAPIView):
             raise NotFound(detail='Facility not found.')
         except ObservationTemplate.DoesNotExist:
             err = "Template '{}' not found for target '{}' and facility '{}'".format(
-                data['template_name'], target.identifier, data['facility']
+                data['template_name'], target.name, data['facility']
             )
             raise NotFound(detail=err)
 

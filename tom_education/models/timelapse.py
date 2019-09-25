@@ -177,7 +177,7 @@ class TimelapseDataProduct(DataProduct):
 
         now = datetime.now()
         date_str = now.strftime('%Y-%m-%d-%H%M%S')
-        product_id = 'timelapse_{}_{}'.format(target.identifier, date_str)
+        product_id = 'timelapse_{}_{}'.format(target.name, date_str)
 
         tl = TimelapseDataProduct.objects.create(
             product_id=product_id,

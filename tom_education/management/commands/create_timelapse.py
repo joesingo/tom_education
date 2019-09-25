@@ -37,9 +37,8 @@ class Command(BaseCommand):
             )
 
         prods = group.dataproduct_set.filter(target=target).exclude(data__endswith=RAW_FILE_EXTENSION)
-        self.stdout.write('Creating timelapse of {n} files for target {ident} ({name})...'.format(
+        self.stdout.write("Creating timelapse of {n} files for target '{name}'...".format(
             n=prods.count(),
-            ident=target.identifier,
             name=target.name
         ))
 
