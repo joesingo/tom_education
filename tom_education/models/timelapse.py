@@ -232,7 +232,7 @@ def normalise_background(hdul):
     Normalise the background brightness level across the data HDU in the given
     HDUList
     """
-    idx, data = get_data_index(hdul)
+    _, data = get_data_index(hdul)
 
     # Remove negative values and cosmic rays
     # TODO: get parameters for detect_cosmics and sigma_clip from settings

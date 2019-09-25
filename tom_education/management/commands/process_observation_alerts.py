@@ -58,6 +58,7 @@ class Command(BaseCommand):
                 tl.data.delete(save=False)
 
         for alert in new_data_alerts:
+            target = alert.observation.target
             # Send update email
             subject = "Observation for '{}' has new data".format(target.name)
             message = ("Your observation for '{}' has completed, and a "

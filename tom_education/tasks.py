@@ -1,10 +1,8 @@
 import sys
 
-from django.conf import settings
 import dramatiq
 from redis.exceptions import RedisError
 
-import tom_education.models as education_models
 from tom_education.models import (
     AsyncError, TimelapseProcess, ASYNC_STATUS_FAILED, PipelineProcess
 )

@@ -59,4 +59,3 @@ class ObservationTemplate(models.Model):
         if facility == 'LCO':
             return ['start', 'end']
         return []
-

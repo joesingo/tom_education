@@ -9,6 +9,7 @@ from tom_dataproducts.models import DataProduct
 class ObservationTemplateAdmin(admin.ModelAdmin):
     list_display = ('name', 'target', 'facility')
 
+
 class DataProductAdminForm(forms.ModelForm):
     class Meta:
         model = DataProduct
@@ -17,8 +18,6 @@ class DataProductAdminForm(forms.ModelForm):
             'tag': forms.Textarea(attrs={'cols': 98})
         }
 
+
 class DataProductAdmin(admin.ModelAdmin):
     form = DataProductAdminForm
-
-# admin.site.unregister(DataProduct)
-# admin.site.register(DataProduct, DataProductAdmin)

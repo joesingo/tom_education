@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
 import json
-import os.path
 from typing import Iterable
 
 from django.contrib import messages
@@ -29,10 +28,6 @@ from rest_framework.response import Response
 
 from tom_education.forms import make_templated_form, DataProductActionForm, GalleryForm
 from tom_education.models import (
-    ASYNC_STATUS_CREATED,
-    ASYNC_STATUS_FAILED,
-    ASYNC_STATUS_PENDING,
-    ASYNC_TERMINAL_STATES,
     AsyncProcess,
     ObservationAlert,
     ObservationTemplate,
@@ -214,7 +209,7 @@ class ActionableTargetDetailView(FormMixin, TargetDetailView):
         # Get pipeline-specific flags. Initially set all to False; those
         # present in form data will be set to True
         flags = {f: False for f in pipeline_cls.flags} if pipeline_cls.flags else {}
-        for key, val in form.data.items():
+        for key in form.data:
             prefix = 'pipeline_flag_'
             if not key.startswith(prefix):
                 continue
@@ -251,6 +246,7 @@ class ActionableTargetDetailView(FormMixin, TargetDetailView):
         base = reverse('tom_education:delete_dataproducts')
         url = base + '?' + urlencode({'product_pks': ",".join(product_pks)})
         return redirect(url)
+
 
 class GalleryView(FormView):
     """
@@ -439,7 +435,7 @@ class ObservationAlertApiCreateView(CreateAPIView):
             parameters=form.serialize_parameters(),
             observation_id=observation_ids[0]
         )
-        alert = ObservationAlert.objects.create(email=data['email'], observation=ob)
+        ObservationAlert.objects.create(email=data['email'], observation=ob)
 
 
 class DataProductDeleteMultipleView(LoginRequiredMixin, TemplateView):

@@ -1,7 +1,7 @@
-from django import template
 from tom_dataproducts.templatetags import dataproduct_extras
+from tom_dataproducts.models import ReducedDatum
 
-from tom_education.models import TimelapseDataProduct, TimelapseProcess, ASYNC_STATUS_CREATED
+from tom_education.models import TimelapseProcess, ASYNC_STATUS_CREATED
 
 
 def exclude_non_created_timelapses(products):

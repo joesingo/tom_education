@@ -5,7 +5,6 @@ import requests
 from django import forms
 from django.conf import settings
 from django.core.files.base import ContentFile
-from crispy_forms.layout import Div
 from dateutil.parser import parse
 from tom_observations.facility import get_service_class
 from tom_observations.facilities.lco import LCOFacility, LCOImagingObservationForm, make_request, PORTAL_URL
@@ -180,12 +179,13 @@ class EducationLCOFacility(LCOFacility):
         """
         products = []
         for frame in self._archive_frames(observation_id, product_id):
-            extra =  {'date_obs': frame['DATE_OBS'],
-                 'instrument': frame['INSTRUME'],
-                 'siteid': frame['SITEID'],
-                 'telid': frame['TELID'],
-                 'exp_time': frame['EXPTIME'],
-                 'filter': frame['FILTER']
+            extra = {
+                'date_obs': frame['DATE_OBS'],
+                'instrument': frame['INSTRUME'],
+                'siteid': frame['SITEID'],
+                'telid': frame['TELID'],
+                'exp_time': frame['EXPTIME'],
+                'filter': frame['FILTER']
             }
             products.append({
                 'id': frame['id'],
@@ -193,7 +193,7 @@ class EducationLCOFacility(LCOFacility):
                 'created': parse(frame['DATE_OBS']),
                 'url': frame['url'],
                 'reduced': frame['RLEVEL'] == 91,
-                'extra' : extra
+                'extra': extra
             })
         return products
 
@@ -207,7 +207,7 @@ class EducationLCOFacility(LCOFacility):
                 product_id=product['id'],
                 target=observation_record.target,
                 observation_record=observation_record,
-                extra_data = json.dumps(product['extra'])
+                extra_data=json.dumps(product['extra'])
             )
             if created:
                 product_data = requests.get(product['url']).content

@@ -63,12 +63,14 @@ class FakeTemplateFacilityForm(FakeFacilityForm):
 
 class FakeTemplateFacility(FakeFacility):
     name = 'TemplateFake'
+
     def get_form(self, *args):
         return FakeTemplateFacilityForm
 
 
 class AnotherFakeFacility(FakeFacility):
     name = 'AnotherFake'
+
     def get_form(self, *args):
         return FakeTemplateFacilityForm
 
@@ -760,7 +762,7 @@ class TimelapseTestCase(DataProductTestCase):
         new_dp = DataProduct.objects.create(product_id='notafitsfile', target=self.target)
         new_dp.data.save('hello.png', File(BytesIO()))
         url = reverse('tom_education:target_data', kwargs={'pk': self.target.pk})
-        response = self.client.post(url, {
+        self.client.post(url, {
             'action': 'create_timelapse',
             self.pk0: 'on',
             new_dp.pk: 'on',
@@ -1052,12 +1054,15 @@ class FakePipelineWithFlags(FakePipeline):
         'default_true': {'default': True, 'long_name': 'Default True'},
         'default_false': {'default': False, 'long_name': 'Default False'},
     }
+
     class Meta:
         proxy = True
     # Create method to pass flags to, so we can mock it and check the correct
     # flags were passed
+
     def log_flags(self, flags):
         pass
+
     def do_pipeline(self, tmpdir, **flags):
         self.log_flags(flags)
         return super().do_pipeline(tmpdir)
@@ -1065,6 +1070,7 @@ class FakePipelineWithFlags(FakePipeline):
 
 class FakePipelineBadFlags(FakePipeline):
     flags = 4
+
     class Meta:
         proxy = True
 
@@ -1149,6 +1155,7 @@ class PipelineTestCase(TomEducationTestCase):
         class NoDataProductPipeline(PipelineProcess):
             class Meta:
                 proxy = True
+
             def do_pipeline(pself, tmpdir):
                 outfile = tmpdir / 'somefile.csv'
                 outfile.write_text('this is a csv')
@@ -1173,6 +1180,7 @@ class PipelineTestCase(TomEducationTestCase):
         class InvalidOutputTypePipeline(PipelineProcess):
             class Meta:
                 proxy = True
+
             def do_pipeline(pself, tmpdir):
                 outfile = tmpdir / 'somefile.csv'
                 outfile.write_text('this is a csv')
@@ -1197,6 +1205,7 @@ class PipelineTestCase(TomEducationTestCase):
         class StatusTestPipeline(PipelineProcess):
             class Meta:
                 proxy = True
+
             def do_pipeline(pself, tmpdir):
                 with pself.update_status('doing something important'):
                     self.assertEqual(pself.status, 'doing something important')
@@ -1328,7 +1337,7 @@ class PipelineTestCase(TomEducationTestCase):
             self.assertTrue(proc is not None)
             # Check outputs
             self.assertTrue(proc.group is not None)
-            self.assertEqual(proc.group.dataproduct_set.count(),  2)
+            self.assertEqual(proc.group.dataproduct_set.count(), 2)
             # Shouldn't be any flags
             self.assertEqual(proc.flags_json, '{}')
 
@@ -1892,7 +1901,7 @@ class EducationLCOFacilityTestCase(TomEducationTestCase):
         self.assertEqual(set(response.context['form'].errors['__all__']), expected_msgs)
 
     def test_instrument_filter_info(self, _validate_mock, _submit_mock):
-       # Construct dict that looks like a response from the LCO instruments API
+        # Construct dict that looks like a response from the LCO instruments API
         instr_response = {
             'instr1': {
                 'optical_elements': {
