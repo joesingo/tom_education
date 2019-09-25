@@ -6,7 +6,7 @@
 <link rel="stylesheet" href="{% static 'tom_education/css/targets.css' %}">
 {% endblock %}
 {% block content %}
-<h2>{{object.identifier}} - {{ object.name }} details
+<h2>{{ object.name }} details
   {% if object.extra_fields.active %}
   <span class="badge badge-pill badge-info">Active</span>
   {% else %}
@@ -24,7 +24,7 @@
               <a href="{% url 'tom_targets:delete' pk=target.id %}" title="Delete target" class="btn  btn-outline-danger">Delete Target</a>
               <dl class="row">
                 {% for key, value in target.as_dict.items %}
-                {% if value and key != 'name' and key != 'identifier'%}
+                {% if value and key != 'name' %}
                 <dt class="col-sm-6">{% verbose_name target key %}</dt>
                 <dd class="col-sm-6">{{ value|truncate_number }}</dd>
                 {% endif %}
@@ -81,7 +81,13 @@
   {% for observation in object.observationrecord_set.all %}
     <tr>
       <td>{% status_icon observation.status %}</td>
-      <td><a href="{% url 'tom_observations:detail' observation.id %}">{{ observation.scheduled_start }}</a></td>
+      <td><a href="{% url 'tom_observations:detail' observation.id %}">
+        {% if observation.scheduled_start %}
+        {{ observation.scheduled_start }}
+        {% else %}
+        Pending
+        {% endif %}
+      </a></td>
     </tr>
   {% endfor %}
 </table>

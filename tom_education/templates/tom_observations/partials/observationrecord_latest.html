@@ -5,9 +5,15 @@
   <tbody>
   {% for observation in observationrecords %}
   <tr>
-    <td>{{ observation.target.identifier }}</td>
+    <td>{{ observation.target.name}}</td>
     <td>{% status_icon observation.status %}</td>
-    <td><a href="{% url 'tom_observations:detail' observation.id %}">{{ observation.scheduled_start }}</a></td>
+    <td><a href="{% url 'tom_observations:detail' observation.id %}">
+      {% if observation.scheduled_start %}
+      {{ observation.scheduled_start }}
+      {% else %}
+      Pending
+      {% endif %}
+    </a></td>
   </tr>
   {% endfor %}
 </table>

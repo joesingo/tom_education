@@ -9,7 +9,7 @@
 
 {% block content %}
 
-<h2>{{ object.identifier }}</h2>
+<h2>{{ object.name }}</h2>
 
 <div class="row">
     <div class="col-md-4">
@@ -31,7 +31,7 @@
                 <dt class="col-sm-6">Target</dt>
                 <dd>
                     <a href="{{ target_url }}" title="View the associated target">
-                        {{ object.target.identifier|truncatechars:20 }}
+                        {{ object.target.name|truncatechars:20 }}
                     </a>
                 </dd>
             {% endif %}

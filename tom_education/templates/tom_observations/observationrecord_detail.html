@@ -5,7 +5,7 @@
 <link rel="stylesheet" href="{% static 'tom_observations/css/main.css' %}">
 {% endblock %}
 {% block content %}
-<h2>&crarr;&nbsp;<a href="{% url 'tom_education:target_detail' object.target.pk %}">{{object.target.identifier}} - {{ object.target.name }}</a></h2>
+<h2>&crarr;&nbsp;<a href="{% url 'tom_education:target_detail' object.target.pk %}"> {{ object.target.name }}</a></h2>
 <div class="row">
   <div class="col-md-8">
     <a class="btn btn-success" href="{{ object.url }}">View at observatory »</a>
@@ -64,7 +64,7 @@
     <dl class="row">
       {% for k,v in object.parameters_as_dict.items %}
       <dt class="col-sm-6">{{ k }}</dt>
-      <dd class="col-sm-6">{{ v }}</dt>
+      <dd class="col-sm-6">{{ v }}</dd>
       {% endfor %}
     </dl>
   </div>
