@@ -29,11 +29,11 @@ from rest_framework.response import Response
 from tom_education.forms import make_templated_form, DataProductActionForm, GalleryForm
 from tom_education.models import (
     AsyncProcess,
+    ASYNC_STATUS_CREATED,
     ObservationAlert,
     ObservationTemplate,
     PipelineProcess,
-    TimelapseDataProduct,
-    TimelapseProcess,
+    TimelapsePipeline,
 )
 from tom_education.serializers import (
     AsyncProcessSerializer,
@@ -42,8 +42,7 @@ from tom_education.serializers import (
     TargetDetailSerializer,
     TimestampField,
 )
-from tom_education.tasks import make_timelapse, run_pipeline, send_task
-from tom_education.templatetags.dataproduct_extras import exclude_non_created_timelapses
+from tom_education.tasks import run_pipeline, send_task
 
 
 class TemplatedObservationCreateView(ObservationCreateView):
@@ -187,15 +186,6 @@ class ActionableTargetDetailView(FormMixin, TargetDetailView):
             return HttpResponseBadRequest('Invalid action \'{}\''.format(form.data['action']))
         return method(products, form)
 
-    def handle_create_timelapse(self, products, form):
-        target = self.get_object()
-        tl_prod = TimelapseDataProduct.create_timestamped(target, products)
-        tl_process = TimelapseProcess.objects.create(
-            identifier=tl_prod.get_filename(), timelapse_product=tl_prod, target=target
-        )
-        send_task(make_timelapse, tl_process)
-        return JsonResponse({'ok': True})
-
     def handle_pipeline(self, products, form):
         try:
             name = form.data['pipeline_name']
@@ -219,19 +209,8 @@ class ActionableTargetDetailView(FormMixin, TargetDetailView):
             flags[flag] = True
 
         target = self.get_object()
-
-        now = datetime.now()
-        date_str = now.strftime('%Y-%m-%d-%H%M%S')
-        code = pipeline_cls.short_name
-        identifier = f'{code}_{target.name}_{date_str}'
-        process = pipeline_cls.objects.create(
-            identifier=identifier,
-            target=target,
-            flags_json=json.dumps(flags),
-        )
-        process.input_files.add(*products)
-        process.save()
-        send_task(run_pipeline, process, name)
+        pipe = pipeline_cls.create_timestamped(target, products, flags)
+        send_task(run_pipeline, pipe, name)
         return JsonResponse({'ok': True})
 
     def handle_view_gallery(self, products, form):
@@ -360,7 +339,7 @@ class TargetDetailApiInfo:
     for the target detail API
     """
     target: Target
-    timelapses: Iterable[TimelapseDataProduct]
+    timelapses: Iterable[TimelapsePipeline]
 
 
 class TargetDetailApiView(RetrieveAPIView):
@@ -376,9 +355,10 @@ class TargetDetailApiView(RetrieveAPIView):
 
     def get_object(self):
         target = super().get_object()
-        all_timelapses = TimelapseDataProduct.objects.filter(target=target).order_by('-created')
-        timelapses = exclude_non_created_timelapses(all_timelapses)
-        return TargetDetailApiInfo(target=target, timelapses=timelapses)
+        tl_pipelines = TimelapsePipeline.objects.filter(
+            target=target, status=ASYNC_STATUS_CREATED
+        ).order_by('-terminal_timestamp')
+        return TargetDetailApiInfo(target=target, timelapses=tl_pipelines)
 
 
 class ObservationAlertApiCreateView(CreateAPIView):

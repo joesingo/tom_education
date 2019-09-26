@@ -1,10 +1,11 @@
 from django.conf import settings
 from django.core.mail import send_mail
 from django.core.management.base import BaseCommand
+from tom_dataproducts.models import DataProduct
 from tom_observations.facility import get_service_class
 
 from tom_education.constants import RAW_FILE_EXTENSION
-from tom_education.models import ObservationAlert, TimelapseDataProduct
+from tom_education.models import ObservationAlert, TimelapsePipeline, TIMELAPSE_TAG
 
 
 class Command(BaseCommand):
@@ -44,15 +45,21 @@ class Command(BaseCommand):
                                            .exclude(data__endswith=RAW_FILE_EXTENSION))
             if not prods.exists():
                 continue
-            new_tl = TimelapseDataProduct.create_timestamped(target, prods)
+            new_pipeline = TimelapsePipeline.create_timestamped(target, prods)
             self.stdout.write('Creating timelapse for target {}'.format(target.name))
-            new_tl.write()
+            try:
+                new_pipeline.run()
+            except AsyncError as ex:
+                self.stderr.write(f'Failed to create timelapse: {ex}')
+                return
+            new_tl = new_pipeline.group.dataproduct_set.first()
 
             # Delete old timelapses
             # TODO: control deletion from settings.py
-            timelapses = (TimelapseDataProduct.objects.filter(target=target)
-                                                      .exclude(pk=new_tl.pk)
-                                                      .all())
+            timelapses = (DataProduct.objects
+                                     .filter(target=target, tag=TIMELAPSE_TAG)
+                                     .exclude(pk=new_tl.pk)
+                                     .all())
             for tl in timelapses:
                 tl.delete()
                 tl.data.delete(save=False)

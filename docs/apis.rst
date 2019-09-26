@@ -52,7 +52,7 @@ Async process API
     * ``failure_message``: message explaining why the process failed, or ``null``
     * ``view_url``: relative URL to info page if this is a pipeline processes, or
       ``null`` for other process types
-    * ``process_type``: string field identifying the type of process, e.g. ``TimelapseProcess``
+    * ``process_type``: string field identifying the type of process, e.g. ``TimelapsePipeline``
 * ``timestamp``: current server time. This is useful for web clients that poll the
   API to detect when a process finishes, since the first received ``timestamp``
   can be compared with the process's ``terminal_timestamp`` to exclude processes
@@ -61,23 +61,25 @@ Async process API
 **Example output:** ::
 
     {
-      "timestamp": 1564740590.527199,
+      "timestamp": 1569512837.025409,
       "processes": [
         {
-          "identifier": "timelapse_m13_2019-08-02-100944.webm",
-          "created": 1564740586.489885,
-          "status": "created",
-          "terminal_timestamp": 1564740590.162959,
-          "failure_message": null,
-          "view_url": null
+          "identifier": "astrosource_1_20190926154552",
+          "created": 1569512752.759492,
+          "status": "failed",
+          "terminal_timestamp": 1569512753.583918,
+          "failure_message": "All Stars Removed. Try removing problematic files or raising the imageFracReject",
+          "view_url": "/pipeline/17",
+          "process_type": "AstrosourceProcess"
         },
         {
-          "identifier": "astrosource_m13_2019-07-30-122657",
-          "created": 1564489617.601547,
-          "status": "pending",
-          "terminal_timestamp": null,
+          "identifier": "timelapse_1_20190926154515",
+          "created": 1569512715.513135,
+          "status": "created",
+          "terminal_timestamp": 1569512717.150723,
           "failure_message": null,
-          "view_url": "/pipeline/51"
+          "view_url": "/pipeline/16",
+          "process_type": "TimelapsePipeline"
         }
       ]
     }
@@ -123,10 +125,7 @@ Target detail and timelapses API
 **Output:** Key-value object with the following keys:
 
 * ``target``: key-value object:
-    * ``identifier``
     * ``name``
-    * ``name2``
-    * ``name3``
     * ``extra_fields``: key-value object containing `extra target fields
       <https://tomtoolkit.github.io/docs/target_fields>`_
 * ``timelapses``: list of timelapses sorted by creation time (most recent first).
@@ -134,7 +133,7 @@ Target detail and timelapses API
 
     * ``name``: basename of timelapse filename
     * ``format``: the format of the timelapse (e.g. ``gif``)
-    * ``url``: URL from which the timelapses can be downloaded
+    * ``url``: relative URL from which the timelapse can be downloaded
     * ``created``: creation time
     * ``frames``: the number of frames that comprise the timelapse
 
@@ -142,28 +141,18 @@ Target detail and timelapses API
 
     {
       "target": {
-        "identifier": "m13",
         "name": "Hercules Globular Cluster",
-        "name2": "",
-        "name3": "",
         "extra_fields": {
           "mykey": "myvalue"
         }
       },
       "timelapses": [
         {
-          "name": "timelapse_m13_2019-08-02-100915.webm",
-          "format": "webm",
-          "url": "/data/m13/none/timelapse_m13_2019-08-02-100915.webm",
-          "created": 1564740555.119924,
+          "name": "timelapse_1_20190926154515_t.gif",
+          "format": "gif",
+          "url": "/data/Hercules%20Globular%20Cluster/none/timelapse_1_20190926154515_t.gif",
+          "created": 1569512717.150723,
           "frames": 2
-        },
-        {
-          "name": "timelapse_m13_2019-08-02-093131.webm",
-          "format": "webm",
-          "url": "/data/m13/none/timelapse_m13_2019-08-02-093131.webm",
-          "created": 1564738291.45856,
-          "frames": 3
         }
       ]
     }

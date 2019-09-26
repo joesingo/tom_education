@@ -6,7 +6,7 @@ from tom_dataproducts.models import DataProductGroup
 from tom_targets.models import Target
 
 from tom_education.constants import RAW_FILE_EXTENSION
-from tom_education.models import TimelapseDataProduct
+from tom_education.models import TimelapsePipeline, AsyncError
 
 
 # Supress imageio warnings
@@ -46,6 +46,12 @@ class Command(BaseCommand):
             self.stdout.write('Nothing to do')
             return
 
-        tl = TimelapseDataProduct.create_timestamped(target, prods)
-        tl.write()
-        self.stdout.write(self.style.SUCCESS('Created timelapse {}'.format(tl.data.path)))
+        pipe = TimelapsePipeline.create_timestamped(target, prods)
+        try:
+            pipe.run()
+        except AsyncError as ex:
+            self.stderr.write(f'Failed to create timelapse: {ex}')
+        else:
+            prod = pipe.group.dataproduct_set.first()
+            msg = f'Created timelapse {prod.data.path}'
+            self.stdout.write(self.style.SUCCESS(msg))

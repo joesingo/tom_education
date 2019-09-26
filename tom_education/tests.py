@@ -35,7 +35,6 @@ from tom_education.models import (
     AsyncError,
     AsyncProcess,
     crop_image,
-    DateFieldNotFoundError,
     InvalidPipelineError,
     ObservationAlert,
     ObservationTemplate,
@@ -44,11 +43,11 @@ from tom_education.models import (
     TIMELAPSE_GIF,
     TIMELAPSE_MP4,
     TIMELAPSE_WEBM,
-    TimelapseDataProduct,
-    TimelapseProcess,
+    TIMELAPSE_TAG,
+    TimelapsePipeline,
 )
-from tom_education.tasks import make_timelapse
 from tom_education.templatetags.tom_education_extras import dataproduct_selection_buttons
+from tom_education.tasks import run_pipeline
 
 
 class FakeTemplateFacilityForm(FakeFacilityForm):
@@ -434,8 +433,7 @@ class TargetDataViewTestCase(DataProductTestCase):
 
 
 @override_settings(TOM_EDUCATION_TIMELAPSE_SETTINGS={
-    'format': 'gif', 'fps': 10, 'size': 500, 'normalise_background': False,
-    'crop': {'scale': None, 'enabled': False}
+    'format': 'gif', 'fps': 10, 'size': 500, 'crop_scale': 0.5
 })
 class TimelapseTestCase(DataProductTestCase):
     def setUp(self):
@@ -444,16 +442,15 @@ class TimelapseTestCase(DataProductTestCase):
         self.client.force_login(self.user)
         assign_perm('tom_targets.view_target', self.user, self.target)
 
-    def create_timelapse_dataproduct(self, products, **kwargs):
-        tldp = TimelapseDataProduct.objects.create(
-            product_id='test_{}'.format(datetime.now().isoformat()),
+    def create_timelapse_pipeline(self, products, **kwargs):
+        pipeline = TimelapsePipeline.objects.create(
+            identifier='test_{}'.format(datetime.now().isoformat()),
             target=self.target,
-            observation_record=self.observation_record,
             **kwargs
         )
-        tldp.frames.add(*products)
-        tldp.save()
-        return tldp
+        pipeline.input_files.add(*products)
+        pipeline.save()
+        return pipeline
 
     # Methods to check a buffer for file signatures.
     # See https://www.garykessler.net/library/file_sigs.html
@@ -470,7 +467,7 @@ class TimelapseTestCase(DataProductTestCase):
         self.assertEqual(data.read(4), b'\x1a\x45\xdf\xa3')
 
     @override_settings(TOM_EDUCATION_TIMELAPSE_SETTINGS={'format': TIMELAPSE_GIF, 'fps': 16})
-    @patch('tom_education.models.timelapse.datetime')
+    @patch('tom_education.models.pipelines.datetime')
     def test_create_timelapse_form(self, dt_mock):
         """
         Test the view and form, and check that the timelapse is created
@@ -489,14 +486,14 @@ class TimelapseTestCase(DataProductTestCase):
         self.assertIn('dataproducts_form', response.context)
         self.assertIsInstance(response.context['dataproducts_form'], DataProductActionForm)
 
-        pre_tldp_count = TimelapseDataProduct.objects.count()
-        pre_tlproc_count = TimelapseProcess.objects.count()
-        self.assertEqual(pre_tldp_count, 0)
-        self.assertEqual(pre_tlproc_count, 0)
+        pre_tlpipe_count = TimelapsePipeline.objects.count()
+        self.assertEqual(pre_tlpipe_count, 0)
+        self.assertFalse(DataProduct.objects.filter(tag=TIMELAPSE_TAG).exists())
 
         # POST form
         response2 = self.client.post(url, {
-            'action': 'create_timelapse',
+            'action': 'pipeline',
+            'pipeline_name': 'Timelapse',
             self.pk0: 'on',
             self.pk3: 'on',
             self.pk2: 'on',
@@ -505,32 +502,29 @@ class TimelapseTestCase(DataProductTestCase):
         self.assertEqual(response2.status_code, 200)
         self.assertEqual(response2.json(), {'ok': True})
 
-        # TimelapseDataProduct and TimelapseProcess should have been created
-        post_tldp_count = TimelapseDataProduct.objects.count()
-        post_tlproc_count = TimelapseProcess.objects.count()
-        self.assertEqual(post_tldp_count, pre_tldp_count + 1)
-        self.assertEqual(post_tlproc_count, pre_tlproc_count + 1)
-        tldp = TimelapseDataProduct.objects.all()[0]
-        proc = TimelapseProcess.objects.all()[0]
+        # TimelapsePipeline object should have been created
+        post_tlpipe_count = TimelapsePipeline.objects.count()
+        self.assertEqual(post_tlpipe_count, pre_tlpipe_count + 1)
+        pipe = TimelapsePipeline.objects.last()
+        self.assertIn('Processing frame 1/3', pipe.logs)
+        self.assertIn('Processing frame 2/3', pipe.logs)
+        self.assertIn('Processing frame 3/3', pipe.logs)
+
+        # DataProduct with timelapse tag should have been created
+        tls = DataProduct.objects.filter(tag=TIMELAPSE_TAG)
+        self.assertTrue(tls.exists())
+        dp = tls.first()
 
         # Check the fields are correct
-        self.assertEqual(tldp.target, self.target)
-        self.assertEqual(tldp.observation_record, None)
-        self.assertEqual(tldp.tag, 'timelapse')
-        expected_id = 'timelapse_{}_2019-01-02-030405'.format(self.target.name)
-        expected_filename = expected_id + '.gif'
-        self.assertEqual(tldp.product_id, expected_id)
-        self.assertTrue(os.path.basename(tldp.data.name), expected_filename)
-        self.assertEqual(set(tldp.frames.all()), {self.prods[0], self.prods[2], self.prods[3]})
-        self.assertEqual(tldp.fmt, TIMELAPSE_GIF)
-        self.assertEqual(tldp.fps, 16)
-
-        # Check the process looks correct
-        self.assertEqual(proc.timelapse_product, tldp)
-        self.assertEqual(proc.status, ASYNC_STATUS_CREATED)
+        self.assertEqual(dp.target, self.target)
+        self.assertEqual(dp.observation_record, None)
+        self.assertEqual(dp.tag, TIMELAPSE_TAG)
+        expected_filename = 'timelapse_{}_20190102030405_t.gif'.format(self.target.pk)
+        self.assertEqual(dp.product_id, expected_filename)
+        self.assertTrue(os.path.basename(dp.data.name), expected_filename)
 
         # Check the timelapse data
-        self.assert_gif_data(tldp.data.file)
+        self.assert_gif_data(dp.data.file)
 
     def test_empty_form(self):
         form = DataProductActionForm(target=self.target, data={})
@@ -544,8 +538,8 @@ class TimelapseTestCase(DataProductTestCase):
 
     def test_fits_file_sorting(self):
         correct_order = [self.prods[0], self.prods[1], self.prods[3], self.prods[2]]
-        tldp = self.create_timelapse_dataproduct(self.prods)
-        self.assertEqual(tldp.sorted_frames(), correct_order)
+        pipeline = self.create_timelapse_pipeline(self.prods)
+        self.assertEqual(pipeline.sorted_frames(), correct_order)
 
     def test_multiple_observations(self):
         """
@@ -562,16 +556,15 @@ class TimelapseTestCase(DataProductTestCase):
             observation_record=other_obs,
             data=self.prods[0].data.name
         )
-        tldp = self.create_timelapse_dataproduct([
+        pipeline = self.create_timelapse_pipeline([
             self.prods[0], self.prods[1], other_obs_prod
         ])
-        tldp.write()
-        tldp.save()
+        pipeline.write_timelapse(BytesIO(), 'gif', 30, 500)
 
     def test_create_gif(self):
-        tldp = self.create_timelapse_dataproduct(self.prods)
+        pipeline = self.create_timelapse_pipeline(self.prods)
         buf = BytesIO()
-        tldp._write(buf)
+        pipeline.write_timelapse(buf, fmt='gif')
         self.assert_gif_data(buf)
 
         # Check the number of frames is correct
@@ -581,12 +574,10 @@ class TimelapseTestCase(DataProductTestCase):
         # Check the size of the first frame
         self.assertEqual(frames[0].shape, self.image_data.shape)
 
-        # TODO: check the actual image data
-
     def test_create_mp4(self):
-        tldp = self.create_timelapse_dataproduct(self.prods, fmt=TIMELAPSE_MP4)
+        pipeline = self.create_timelapse_pipeline(self.prods)
         buf = BytesIO()
-        tldp._write(buf)
+        pipeline.write_timelapse(buf, fmt='mp4')
         self.assert_mp4_data(buf)
         buf.seek(0)
         # Load and check the mp4 with imageio
@@ -594,94 +585,67 @@ class TimelapseTestCase(DataProductTestCase):
         self.assertEqual(len(frames), len(self.prods))
 
     def test_create_webm(self):
-        tldp = self.create_timelapse_dataproduct(self.prods, fmt=TIMELAPSE_WEBM)
+        pipeline = self.create_timelapse_pipeline(self.prods)
         buf = BytesIO()
-        tldp._write(buf)
+        pipeline.write_timelapse(buf, fmt='webm')
         buf.seek(0)
         self.assert_webm_data(buf)
 
     def test_invalid_fps(self):
         invalid_fpses = (0, -1)
         for fps in invalid_fpses:
-            with self.assertRaises(ValidationError):
-                TimelapseDataProduct.objects.create(
-                    product_id=f'timelapse_fps_{fps}',
-                    target=self.target,
-                    observation_record=self.observation_record,
-                    fps=fps
-                )
+            with self.settings(TOM_EDUCATION_TIMELAPSE_SETTINGS={'fps': fps}):
+                pip = self.create_timelapse_pipeline(self.prods)
+                with self.assertRaises(AsyncError):
+                    pip.run()
 
-    def test_write_to_data_attribute(self):
-        tldp = self.create_timelapse_dataproduct(self.prods)
-        tldp.product_id = 'myproductid_{}'.format(datetime.now().strftime('%s'))
-        tldp.save()
-        tldp.write()
-        tldp.save()
-        exp_filename = '/' + tldp.product_id + '.gif'
-        self.assertTrue(tldp.data.name.endswith(exp_filename), tldp.data.name)
-
-        # Check the actual data file
-        self.assert_gif_data(tldp.data.file)
-
-    @patch('tom_education.models.TimelapseDataProduct.FITS_DATE_FIELD', new='hello')
+    @patch('tom_education.models.TimelapsePipeline.FITS_DATE_FIELD', new='hello')
     def test_no_observation_date_view(self):
         """
         Check we get the expected error when a FITS file does not contain the
         header for the date of the observation. This is achieved by patching
         the field name and setting it to 'hello'
         """
-        tldp = self.create_timelapse_dataproduct(self.prods)
-        with self.assertRaises(DateFieldNotFoundError):
-            tldp.write()
+        pipeline = self.create_timelapse_pipeline(self.prods)
+        with self.assertRaises(AsyncError):
+            pipeline.write_timelapse(BytesIO())
 
     @override_settings(TOM_EDUCATION_TIMELAPSE_SETTINGS={'format': TIMELAPSE_GIF, 'fps': 16})
-    def test_make_timelapse_wrapper(self):
-        tldp = self.create_timelapse_dataproduct(self.prods)
-        process = TimelapseProcess.objects.create(
-            identifier=tldp.get_filename(),
-            target=tldp.target,
-            timelapse_product=tldp
-        )
+    def test_run_pipeline_wrapper(self):
+        pipeline = self.create_timelapse_pipeline(self.prods)
         # Cause an 'expected' error by patching date field: should get proper
         # failure message
-        with patch('tom_education.models.TimelapseDataProduct.FITS_DATE_FIELD', new='hello') as _mock:
-            make_timelapse(process.pk)
-            process.refresh_from_db()
-            self.assertEqual(process.status, ASYNC_STATUS_FAILED)
-            self.assertTrue(isinstance(process.failure_message, str))
-            self.assertIn('could not find observation date', process.failure_message)
+        with patch('tom_education.models.TimelapsePipeline.FITS_DATE_FIELD', new='hello') as _mock:
+            run_pipeline(pipeline.pk, 'Timelapse')
+            pipeline.refresh_from_db()
+            self.assertEqual(pipeline.status, ASYNC_STATUS_FAILED)
+            self.assertTrue(isinstance(pipeline.failure_message, str))
+            self.assertIn('could not find observation date', pipeline.failure_message)
 
         # Cause an 'unexpected' error: should get generic failure message
-        tldp2 = self.create_timelapse_dataproduct(self.prods)
-        process2 = TimelapseProcess.objects.create(
-            identifier=tldp2.get_filename(),
-            target=tldp2.target,
-            timelapse_product=tldp2
-        )
+        pipeline2 = self.create_timelapse_pipeline(self.prods)
         with patch('tom_education.models.timelapse.imageio', new='hello') as _mock:
-            make_timelapse(process2.pk)
-            process2.refresh_from_db()
-            self.assertEqual(process2.status, ASYNC_STATUS_FAILED)
-            self.assertTrue(isinstance(process2.failure_message, str))
-            self.assertEqual(process2.failure_message, 'An unexpected error occurred')
+            run_pipeline(pipeline2.pk, 'Timelapse')
+            pipeline2.refresh_from_db()
+            self.assertEqual(pipeline2.status, ASYNC_STATUS_FAILED)
+            self.assertTrue(isinstance(pipeline2.failure_message, str))
+            self.assertEqual(pipeline2.failure_message, 'An unexpected error occurred')
 
         # Create a timelapse successfully
-        tldp3 = self.create_timelapse_dataproduct(self.prods)
-        process3 = TimelapseProcess.objects.create(
-            identifier=tldp3.get_filename(),
-            target=tldp3.target,
-            timelapse_product=tldp3
-        )
-        make_timelapse(process3.pk)
-        process3.refresh_from_db()
-        self.assertEqual(process3.status, ASYNC_STATUS_CREATED)
-        self.assert_gif_data(tldp3.data.file)
+        pipeline3 = self.create_timelapse_pipeline(self.prods)
+        run_pipeline(pipeline3.pk, 'Timelapse')
+        pipeline3.refresh_from_db()
+        self.assertEqual(pipeline3.status, ASYNC_STATUS_CREATED)
+        self.assertTrue(pipeline3.group)
+        dps = pipeline3.group.dataproduct_set.all()
+        self.assertTrue(dps.exists())
+        self.assert_gif_data(dps.first().data.file)
 
     @override_settings(TOM_EDUCATION_TIMELAPSE_SETTINGS={'format': TIMELAPSE_GIF, 'fps': 16},
                        TOM_EDUCATION_TIMELAPSE_GROUP_NAME='timelapsey')
     def test_management_command(self):
-        pre_tldp_count = TimelapseDataProduct.objects.count()
-        self.assertEqual(pre_tldp_count, 0)
+        pre_tlpipe_count = TimelapsePipeline.objects.count()
+        self.assertEqual(pre_tlpipe_count, 0)
 
         # Make first 3 products in timelapse group, but have the third one a
         # raw file
@@ -702,120 +666,89 @@ class TimelapseTestCase(DataProductTestCase):
         buf = StringIO()
         call_command('create_timelapse', self.target.pk, stdout=buf)
 
-        # Check timelapse object created
-        post_tldp_count = TimelapseDataProduct.objects.count()
-        self.assertEqual(post_tldp_count, pre_tldp_count + 1)
+        # Check timelapse pipeline object created
+        post_tlpipe_count = TimelapsePipeline.objects.count()
+        self.assertEqual(post_tlpipe_count, pre_tlpipe_count + 1)
+
+        # Check fields in the pipeline look correct
+        pipe = TimelapsePipeline.objects.first()
+        self.assertEqual(pipe.target, self.target)
+        self.assertEqual(set(pipe.input_files.all()), set(self.prods[:2]))
 
         # Check the timelapse itself
-        tldp = TimelapseDataProduct.objects.all()[0]
-        self.assertEqual(tldp.target, self.target)
-        self.assertEqual(set(tldp.frames.all()), set(self.prods[:2]))
-        self.assert_gif_data(tldp.data.file)
+        tls = DataProduct.objects.filter(tag=TIMELAPSE_TAG)
+        self.assertEqual(tls.count(), 1)
+        tl = tls.first()
+        self.assert_gif_data(tl.data.file)
 
         # Check the command output
         output = buf.getvalue()
         self.assertTrue("Creating timelapse of 2 files for target 'my target'..." in output)
         self.assertTrue('Created timelapse' in output)
 
+    @patch('tom_education.models.timelapse.TimelapsePipeline.FITS_DATE_FIELD', 'hello')
+    @override_settings(TOM_EDUCATION_TIMELAPSE_SETTINGS={'format': TIMELAPSE_GIF, 'fps': 16},
+                       TOM_EDUCATION_TIMELAPSE_GROUP_NAME='timelapsey')
+    def test_management_command_failure(self):
+        group = DataProductGroup.objects.create(name='timelapsey')
+        for prod in self.prods[:3]:
+            prod.group.add(group)
+            prod.save()
+
+        buf = StringIO()
+        call_command('create_timelapse', self.target.pk, stderr=buf)
+        self.assertIn('could not find observation date', buf.getvalue())
+
     def test_management_command_no_dataproducts(self):
         buf = StringIO()
         call_command('create_timelapse', self.target.pk, stdout=buf)
         output = buf.getvalue()
         self.assertTrue('Nothing to do' in output, 'Output was: {}'.format(output))
-        self.assertEqual(TimelapseDataProduct.objects.count(), 0)
+        self.assertEqual(DataProduct.objects.filter(tag=TIMELAPSE_TAG).count(), 0)
         # The timelapse group should have been created
         self.assertEqual(DataProductGroup.objects.count(), 1)
 
-    def test_dataproduct_table(self):
-        """
-        Check that only created timelapses are shown in the data product table
-        in the target data view
-        """
-        # Create one timelapse for each status
-        pending = TimelapseDataProduct.objects.create(product_id='pend', target=self.target)
-        created = TimelapseDataProduct.objects.create(product_id='cre', target=self.target)
-        failed = TimelapseDataProduct.objects.create(product_id='fail', target=self.target)
-        TimelapseProcess.objects.create(
-            identifier='pend', status=ASYNC_STATUS_PENDING, timelapse_product=pending
-        )
-        TimelapseProcess.objects.create(
-            identifier='cre', status=ASYNC_STATUS_CREATED, timelapse_product=created
-        )
-        TimelapseProcess.objects.create(
-            identifier='fail', status=ASYNC_STATUS_FAILED, timelapse_product=failed
-        )
-
-        url = reverse('tom_education:target_data', kwargs={'pk': self.target.pk})
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 200)
-
-        expected = self.prods + [created]
-        unexpected = [pending, failed]
-        for prod in expected:
-            filename = prod.get_file_name()
-            self.assertIn(filename, response.content.decode(), filename)
-        for prod in unexpected:
-            filename = prod.get_file_name()
-            self.assertNotIn(filename, response.content.decode(), filename)
-
-    def test_non_fits_file(self):
-        new_dp = DataProduct.objects.create(product_id='notafitsfile', target=self.target)
-        new_dp.data.save('hello.png', File(BytesIO()))
-        url = reverse('tom_education:target_data', kwargs={'pk': self.target.pk})
-        self.client.post(url, {
-            'action': 'create_timelapse',
-            self.pk0: 'on',
-            new_dp.pk: 'on',
-        })
-        # Status and error message of TimelapseProcess should be set
-        proc = TimelapseProcess.objects.first()
-        self.assertEqual(proc.status, ASYNC_STATUS_FAILED)
-        self.assertIn('hello.png', proc.failure_message)
-
     @patch('tom_education.models.timelapse.normalise_background')
     def test_background_normalisation(self, norm_mock):
-        tldp = self.create_timelapse_dataproduct(self.prods)
+        pipeline = self.create_timelapse_pipeline(self.prods)
 
         # With processing, the normalisation method should be called for each
         # frame
-        with self.settings(TOM_EDUCATION_TIMELAPSE_SETTINGS={'normalise_background': True}):
-            buf = BytesIO()
-            tldp._write(buf)
-            self.assertEqual(norm_mock.call_count, len(self.prods))
+        buf = BytesIO()
+        pipeline.write_timelapse(buf, normalise_background=True)
+        self.assertEqual(norm_mock.call_count, len(self.prods))
 
         # With processing disabled, it shouldn't be called any more times
-        with self.settings(TOM_EDUCATION_TIMELAPSE_SETTINGS={'normalise_background': False}):
-            buf = BytesIO()
-            tldp._write(buf)
-            self.assertEqual(norm_mock.call_count, len(self.prods))
+        buf = BytesIO()
+        pipeline.write_timelapse(buf, normalise_background=False)
+        self.assertEqual(norm_mock.call_count, len(self.prods))
 
+    @override_settings(TOM_EDUCATION_TIMELAPSE_SETTINGS={'crop_scale': 0.8})
     def test_timelapse_cropping(self):
-        tldp = self.create_timelapse_dataproduct(self.prods)
+        pipeline = self.create_timelapse_pipeline(self.prods)
 
-        with self.settings(TOM_EDUCATION_TIMELAPSE_SETTINGS={'crop': {'enabled': True, 'scale': 0.8}}):
-            buf = BytesIO()
-            tldp._write(buf)
-            buf.seek(0)
-            frames = imageio.mimread(buf)
-            # Check all frames are the same shape
-            shape = frames[0].shape
-            self.assertTrue(all(f.shape == shape for f in frames[1:]))
-            # Check the shape is as expected
-            self.assertEqual(
-                shape,
-                (int(0.8 * self.test_fits_shape[0]), int(0.8 * self.test_fits_shape[1]))
-            )
+        buf = BytesIO()
+        pipeline.write_timelapse(buf, crop=True)
+        buf.seek(0)
+        frames = imageio.mimread(buf)
+        # Check all frames are the same shape
+        shape = frames[0].shape
+        self.assertTrue(all(f.shape == shape for f in frames[1:]))
+        # Check the shape is as expected
+        self.assertEqual(
+            shape,
+            (int(0.8 * self.test_fits_shape[0]), int(0.8 * self.test_fits_shape[1]))
+        )
 
         # Repeat of the above test but with cropping disabled: the shape of the
         # output frames should be identical to the shape of the inputs
-        with self.settings(TOM_EDUCATION_TIMELAPSE_SETTINGS={'crop': {'enabled': False, 'scale': 'blah'}}):
-            buf = BytesIO()
-            tldp._write(buf)
-            buf.seek(0)
-            frames = imageio.mimread(buf)
-            shape = frames[0].shape
-            self.assertTrue(all(f.shape == shape for f in frames[1:]))
-            self.assertEqual(shape, self.test_fits_shape)
+        buf = BytesIO()
+        pipeline.write_timelapse(buf, crop=False)
+        buf.seek(0)
+        frames = imageio.mimread(buf)
+        shape = frames[0].shape
+        self.assertTrue(all(f.shape == shape for f in frames[1:]))
+        self.assertEqual(shape, self.test_fits_shape)
 
     def test_cropping(self):
         K = 0.5
@@ -951,12 +884,7 @@ class AsyncStatusApiTestCase(TomEducationTestCase):
 
         django_mock.return_value = create_time1
         target = Target.objects.create(name='my target')
-        proc = TimelapseProcess.objects.create(
-            identifier='hello',
-            target=target,
-            status=ASYNC_STATUS_PENDING,
-            timelapse_product=TimelapseDataProduct.objects.create(product_id='blah', target=target),
-        )
+        proc = AsyncProcess.objects.create(identifier='hello', target=target)
         # Make a failed process with a different creation time
         # Have it an PipelineProcess to check 'view_url' is provided
         django_mock.return_value = create_time2
@@ -971,7 +899,7 @@ class AsyncStatusApiTestCase(TomEducationTestCase):
         # Construct the dicts representing processes expected in the JSON
         # response (excluding fields that will change)
         proc_dict = {
-            'process_type': 'TimelapseProcess',
+            'process_type': 'AsyncProcess',
             'identifier': 'hello',
             'created': create_timestamp1,
             'terminal_timestamp': None,
@@ -1298,7 +1226,7 @@ class PipelineTestCase(TomEducationTestCase):
         self.assertEqual(response4.json(), {'detail': 'Not found.'})
 
     @patch('tom_education.tests.FakePipelineWithFlags.log_flags')
-    @patch('tom_education.views.datetime')
+    @patch('tom_education.models.pipelines.datetime')
     def test_form(self, dt_mock, flags_mock):
         """In the target data view"""
         url = reverse('tom_education:target_data', kwargs={'pk': self.target.pk})
@@ -1339,7 +1267,7 @@ class PipelineTestCase(TomEducationTestCase):
             self.assertTrue(proc.group is not None)
             self.assertEqual(proc.group.dataproduct_set.count(), 2)
             # Shouldn't be any flags
-            self.assertEqual(proc.flags_json, '{}')
+            self.assertEqual(proc.flags_json, None)
 
             # POST with flags and check they were passed do the pipeline
             # correctly
@@ -1411,9 +1339,15 @@ class PipelineTestCase(TomEducationTestCase):
             proc.run()
 
 
+def mock_write_timelapse(_self, outfile, *args, **kwargs):
+    pass
+
+
 class TargetDetailApiTestCase(TomEducationTestCase):
     def setUp(self):
         super().setUp()
+        write_timelapse_method = 'tom_education.models.timelapse.TimelapsePipeline.write_timelapse'
+
         now = datetime.now().timestamp()
         self.target_name = f'target_{now}'
         self.target = Target(
@@ -1431,54 +1365,60 @@ class TargetDetailApiTestCase(TomEducationTestCase):
             ('no extension', 'randomfile'),
             ('not a real timelapse', 'timelapse.sh'),
         ]
-        self.urls = {}  # Keep track of the URLs for file downloads
         for product_id, filename in data_products:
             dp = DataProduct.objects.create(product_id=product_id, target=self.target)
             dp.data.save(filename, File(BytesIO()))
-            self.urls[product_id] = dp.data.url
 
-        # Create some timelapses
-        tl_gif = TimelapseDataProduct.objects.create(
-            product_id='gif_tl',
-            target=self.target,
-            fmt=TIMELAPSE_GIF,
+        # Make a non-timelapse pipeline process
+        other_pipeline = PipelineProcess.objects.create(
+            identifier='this_is_not_a_timelapse',
+            target=self.target
         )
-        self.gif_creation = tl_gif.created
-        tl_webm = TimelapseDataProduct.objects.create(
-            product_id='webm_tl',
-            target=self.target,
-            fmt=TIMELAPSE_WEBM,
-        )
-        self.webm_creation = tl_webm.created
-        # Add 1 frame for WebM and 2 for GIF
+        other_pipeline.input_files.add(DataProduct.objects.first())
+        other_pipeline.save()
+
+        # Create GIF and WebM timelapses with 2 and 1 frames respectively
         dp1 = DataProduct.objects.create(product_id='dp1', target=self.target)
         dp2 = DataProduct.objects.create(product_id='dp2', target=self.target)
-        tl_webm.frames.add(dp1)
-        tl_webm.save()
-        tl_gif.frames.add(dp1, dp2)
-        tl_gif.save()
+        dp1.data.save('frame1.fits.fz', File(BytesIO()))
+        dp2.data.save('frame2.fits.fz', File(BytesIO()))
 
-        # Make some timelapses with associated timelapse processes in a
-        # non-created state: should not be included in API response
-        tl_failed = TimelapseDataProduct.objects.create(product_id='tl_failed', target=self.target)
-        tl_pending = TimelapseDataProduct.objects.create(product_id='tl_pending', target=self.target)
-        TimelapseProcess.objects.create(
-            identifier='failed',
-            timelapse_product=tl_failed,
+        tl_gif_pipeline = TimelapsePipeline.objects.create(
+            identifier='gif_tl',
+            target=self.target
+        )
+        tl_gif_pipeline.input_files.add(dp1, dp2)
+        with patch(write_timelapse_method, mock_write_timelapse):
+            with self.settings(TOM_EDUCATION_TIMELAPSE_SETTINGS={'format': 'gif'}):
+                tl_gif_pipeline.run()
+
+        self.gif_creation = tl_gif_pipeline.terminal_timestamp
+        self.gif_url = tl_gif_pipeline.group.dataproduct_set.first().data.url
+
+        tl_webm_pipeline = TimelapsePipeline.objects.create(
+            identifier='webm_tl',
+            target=self.target
+        )
+        tl_webm_pipeline.input_files.add(dp1)
+        with patch(write_timelapse_method, mock_write_timelapse):
+            with self.settings(TOM_EDUCATION_TIMELAPSE_SETTINGS={'format': 'webm'}):
+                tl_webm_pipeline.run()
+
+        self.webm_creation = tl_webm_pipeline.terminal_timestamp
+        self.webm_url = tl_webm_pipeline.group.dataproduct_set.first().data.url
+
+        # Make some timelapses pipelines in a non-terminal state: should not be
+        # included in API response
+        tl_failed = TimelapsePipeline.objects.create(
+            identifier='tl_failed',
             target=self.target,
             status=ASYNC_STATUS_FAILED
         )
-        TimelapseProcess.objects.create(
-            identifier='pending',
-            timelapse_product=tl_pending,
+        tl_pending = TimelapsePipeline.objects.create(
+            identifier='tl_pending',
             target=self.target,
             status=ASYNC_STATUS_PENDING
         )
-
-        for dp in (tl_gif, tl_webm, tl_failed, tl_pending):
-            # Note: no need to save `data`, since this is done in
-            # TimelapseDataProduct save() method
-            self.urls[dp.product_id] = dp.data.url
 
     @override_settings(EXTRA_FIELDS=[{'name': 'extrafield', 'type': 'string'}])
     def test_api(self):
@@ -1495,15 +1435,15 @@ class TargetDetailApiTestCase(TomEducationTestCase):
             },
             # Should be sorted: most recent first
             'timelapses': [{
-                'name': 'webm_tl.webm',
+                'name': 'webm_tl_t.webm',
                 'format': 'webm',
-                'url': self.urls['webm_tl'],
+                'url': self.webm_url,
                 'frames': 1,
                 'created': self.webm_creation.timestamp()
             }, {
-                'name': 'gif_tl.gif',
+                'name': 'gif_tl_t.gif',
                 'format': 'gif',
-                'url': self.urls['gif_tl'],
+                'url': self.gif_url,
                 'frames': 2,
                 'created': self.gif_creation.timestamp()
             }]
@@ -1635,7 +1575,7 @@ class ObservationAlertApiTestCase(TomEducationTestCase):
 
 @override_settings(TOM_FACILITY_CLASSES=FAKE_FACILITIES)
 @patch('tom_education.tests.FakeTemplateFacility.save_data_products')
-@patch('tom_education.models.TimelapseDataProduct.write', new=lambda s: None)
+@patch('tom_education.models.TimelapsePipeline.write_timelapse', mock_write_timelapse)
 @override_settings(TOM_EDUCATION_FROM_EMAIL_ADDRESS='tom@toolkit.edu')
 class ProcessObservationAlertsTestCase(TomEducationTestCase):
     @classmethod
@@ -1674,17 +1614,20 @@ class ProcessObservationAlertsTestCase(TomEducationTestCase):
         non_alert_ob.refresh_from_db()
         self.assertEqual(non_alert_ob.status, 'not even started')
 
-    @patch('tom_education.models.TimelapseDataProduct.create_timestamped',
-           wraps=TimelapseDataProduct.create_timestamped)
-    def test_timelapse_created(self, tl_mock, save_dp_mock):
-        alert = ObservationAlert.objects.create(observation=self.ob, email='someone@somesite.org')
+    @patch('tom_education.models.TimelapsePipeline.create_timestamped',
+           wraps=TimelapsePipeline.create_timestamped)
+    def test_timelapse_created(self, pipeline_mock, save_dp_mock):
+        alert = ObservationAlert.objects.create(
+            observation=self.ob, email='someone@somesite.org'
+        )
         call_command('process_observation_alerts')
-        self.assertEqual(TimelapseDataProduct.objects.count(), 1)
+        self.assertEqual(TimelapsePipeline.objects.count(), 1)
+        self.assertEqual(DataProduct.objects.filter(tag=TIMELAPSE_TAG).count(), 1)
 
         # Check method to create timelapse was called with the correct
         # arguments
-        tl_mock.assert_called_once()
-        args, _ = tl_mock.call_args
+        pipeline_mock.assert_called_once()
+        args, _ = pipeline_mock.call_args
         self.assertEqual(len(args), 2)
         self.assertEqual(args[0], self.target)
         self.assertIsInstance(args[1], QuerySet)
@@ -1692,34 +1635,41 @@ class ProcessObservationAlertsTestCase(TomEducationTestCase):
 
     def test_old_timelapses_deleted(self, save_dp_mock):
         alert = ObservationAlert.objects.create(observation=self.ob, email='someone@somesite.org')
-        tl = TimelapseDataProduct.objects.create(target=self.target, product_id='mytimelapse')
+        tl = DataProduct.objects.create(
+            target=self.target, product_id='mytimelapse', tag=TIMELAPSE_TAG
+        )
+        other_dp = DataProduct.objects.create(
+            target=self.target, product_id='notatimelapse'
+        )
         call_command('process_observation_alerts')
         # Old timelapse and its data should have been deleted
-        self.assertEqual(TimelapseDataProduct.objects.filter(pk=tl.pk).count(), 0)
-        self.assertFalse(os.path.isfile(tl.data.path))
+        self.assertEqual(DataProduct.objects.filter(pk=tl.pk).count(), 0)
+        self.assertFalse(tl.data)
+        # Other data product should not have been deleted
+        self.assertEqual(DataProduct.objects.filter(pk=other_dp.pk).count(), 1)
         # Should be one (new) timelapse
-        self.assertEqual(TimelapseDataProduct.objects.count(), 1)
+        self.assertEqual(DataProduct.objects.filter(tag=TIMELAPSE_TAG).count(), 1)
 
-    @patch('tom_education.models.TimelapseDataProduct.create_timestamped',
-           wraps=TimelapseDataProduct.create_timestamped)
-    def test_multiple_alerts_single_target(self, tl_mock, save_dp_mock):
+    @patch('tom_education.models.TimelapsePipeline.create_timestamped',
+           wraps=TimelapsePipeline.create_timestamped)
+    def test_multiple_alerts_single_target(self, pipeline_mock, save_dp_mock):
         # Create two alerts for the same observation: the target should only
         # have one new timelapse created
         alert1 = ObservationAlert.objects.create(observation=self.ob, email='someone@somesite.org')
         alert2 = ObservationAlert.objects.create(observation=self.ob, email='someoneelse@somesite.org')
         call_command('process_observation_alerts')
-        tl_mock.assert_called_once()
+        pipeline_mock.assert_called_once()
 
-    @patch('tom_education.models.TimelapseDataProduct.create_timestamped',
-           wraps=TimelapseDataProduct.create_timestamped)
-    def test_exclude_raw_data(self, tl_mock, save_dp_mock):
+    @patch('tom_education.models.TimelapsePipeline.create_timestamped',
+           wraps=TimelapsePipeline.create_timestamped)
+    def test_exclude_raw_data(self, pipeline_mock, save_dp_mock):
         raw_dp = DataProduct.objects.create(product_id='raw', target=self.target)
         raw_dp.data.save('rawfile.e00.fits.fz', File(BytesIO()))
         alert = ObservationAlert.objects.create(observation=self.ob, email='someone@somesite.org')
         call_command('process_observation_alerts')
 
-        tl_mock.assert_called_once()
-        args, _ = tl_mock.call_args
+        pipeline_mock.assert_called_once()
+        args, _ = pipeline_mock.call_args
         # Raw file should not be included
         self.assertEqual(set(args[1].all()), {self.dp1, self.dp2})
 

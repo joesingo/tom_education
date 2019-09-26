@@ -162,3 +162,19 @@ class PipelineProcess(AsyncProcess):
             assert isinstance(info, dict)
             assert 'default' in info
             assert 'long_name' in info
+
+    @classmethod
+    def create_timestamped(cls, target, products, flags=None):
+        date_str = datetime.now().strftime('%Y%m%d%H%M%S')
+        identifier = f'{cls.short_name}_{target.pk}_{date_str}'
+        kwargs = {
+            'identifier': identifier,
+            'target': target
+        }
+        if flags:
+            kwargs['flags_json'] = json.dumps(flags)
+
+        pipe = cls.objects.create(**kwargs)
+        pipe.input_files.add(*products)
+        pipe.save()
+        return pipe

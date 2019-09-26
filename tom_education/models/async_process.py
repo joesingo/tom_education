@@ -19,7 +19,7 @@ class AsyncError(Exception):
 
 class AsyncProcess(models.Model):
     process_type = models.CharField(null=True, blank=True, max_length=100)
-    identifier = models.CharField(null=False, blank=False, max_length=50, unique=True)
+    identifier = models.CharField(null=False, blank=False, max_length=100, unique=True)
     created = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=50, default=ASYNC_STATUS_PENDING)
     # Time at which the processes entered a terminal state

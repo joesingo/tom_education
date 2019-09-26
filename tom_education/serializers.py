@@ -75,10 +75,10 @@ class TargetSerializer(serializers.ModelSerializer):
         fields = ['name', 'extra_fields']
 
 
-class TimelapseSerializer(serializers.Serializer):
+class TimelapsePipelineSerializer(serializers.Serializer):
     """
-    Serialize basic info for a timelapse, including the (relative) URL to the
-    actual timelapse file
+    Serialize basic info for a timelapse from a TimelapsePipeline object,
+    including the (relative) URL to the actual timelapse file
     """
     name = serializers.SerializerMethodField()
     format = serializers.SerializerMethodField()
@@ -86,20 +86,24 @@ class TimelapseSerializer(serializers.Serializer):
     created = serializers.SerializerMethodField()
     frames = serializers.SerializerMethodField()
 
+    def _get_dataproduct(self, obj):
+        return obj.group.dataproduct_set.first()
+
     def get_name(self, obj):
-        return os.path.basename(obj.data.name)
+        return os.path.basename(self._get_dataproduct(obj).data.name)
 
     def get_format(self, obj):
-        return obj.fmt
+        filename = self.get_name(obj)
+        return filename.split('.')[-1]
 
     def get_url(self, obj):
-        return obj.data.url
+        return self._get_dataproduct(obj).data.url
 
     def get_created(self, obj):
-        return TimestampField().to_representation(obj.created)
+        return TimestampField().to_representation(obj.terminal_timestamp)
 
     def get_frames(self, obj):
-        return obj.frames.count()
+        return obj.input_files.count()
 
 
 class TargetDetailSerializer(serializers.Serializer):
@@ -108,7 +112,7 @@ class TargetDetailSerializer(serializers.Serializer):
     its timelapses
     """
     target = TargetSerializer()
-    timelapses = serializers.ListSerializer(child=TimelapseSerializer())
+    timelapses = serializers.ListSerializer(child=TimelapsePipelineSerializer())
 
 
 class ObservationAlertSerializer(serializers.Serializer):

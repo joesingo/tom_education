@@ -4,7 +4,7 @@ import dramatiq
 from redis.exceptions import RedisError
 
 from tom_education.models import (
-    AsyncError, TimelapseProcess, ASYNC_STATUS_FAILED, PipelineProcess
+    AsyncError, ASYNC_STATUS_FAILED, PipelineProcess
 )
 
 
@@ -35,20 +35,6 @@ def send_task(task, process, *args):
         process.status = ASYNC_STATUS_FAILED
         process.failure_message = 'Failed to submit job'
         process.save()
-
-
-@task
-def make_timelapse(tl_process_pk):
-    """
-    Task to create the timelapse for the given TimelapseProcess
-    """
-    try:
-        process = TimelapseProcess.objects.get(pk=tl_process_pk)
-    except TimelapseProcess.DoesNotExist:
-        print('warning: could not find TimelapseProcess with PK {}'.format(tl_process_pk),
-              file=sys.stderr)
-        return
-    run_process(process)
 
 
 @task
