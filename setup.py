@@ -7,7 +7,7 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='tom_education',
-    version='1.0.0',
+    version='1.1.0',
     description='TOM toolkit plugin for educational projects',
     long_description=long_description,
     long_description_content_type='text/markdown',
