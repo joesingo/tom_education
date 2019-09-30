@@ -110,29 +110,32 @@ class TimelapsePipeline(PipelineProcess):
 
                     fits_path = product.data.file
 
+
                     # Determine which modifiers to apply to the frame (if any).
                     # A modifier is a function that takes a HDUList as an
                     # argument and modifies it in some way
                     modifiers = []
                     if flags.get('crop'):
                         scale = self.get_settings().get('crop_scale', 0.5)
-                        modifiers.append(lambda hdul: crop_image(hdul, scale))
+                        modifiers.append(lambda hdu, hdr: crop_image(hdu, hdr, scale))
 
                     if flags.get('normalise_background'):
                         modifiers.append(normalise_background)
+                        print('here')
 
                     if modifiers:
-                        hdul = fits.open(fits_path)
+                        data, header = fits.getdata(fits_path, header=True)
 
                         for mod in modifiers:
                             try:
-                                mod(hdul)
+                                data = mod(data, header)
                             except ValueError as ex:
                                 raise AsyncError(
                                     "Error in file '{}': {}".format(product.data.name, ex)
                                 )
 
                         fits_path = os.path.join(tmpdir, 'tmp.fits')
+                        hdul = fits.HDUList([fits.PrimaryHDU(data, header=header)])
                         with open(fits_path, 'wb') as f:
                             hdul.writeto(f)
 
@@ -168,24 +171,11 @@ class TimelapsePipeline(PipelineProcess):
     def get_settings(cls):
         return getattr(settings, 'TOM_EDUCATION_TIMELAPSE_SETTINGS', {})
 
-
-def get_data_index(hdul):
-    """
-    Get the index of the data HDU in the given HDUList, and return (i, data).
-    Raises ValueError if no data HDU is found
-    """
-    for i, hdu in enumerate(hdul):
-        if hdu.data is not None and hdu.data.ndim == 2:
-            return (i, hdu.data)
-    raise ValueError('no data HDU found')
-
-
-def normalise_background(hdul):
+def normalise_background(data, header):
     """
     Normalise the background brightness level across the data HDU in the given
     HDUList
     """
-    _, data = get_data_index(hdul)
 
     # Remove negative values and cosmic rays
     # TODO: get parameters for detect_cosmics and sigma_clip from settings
@@ -195,16 +185,16 @@ def normalise_background(hdul):
     # Perform sigma clipping to normalise background brightness
     clipped = astropy.stats.sigma_clip(imdata, sigma=3, maxiters=10)
     data -= clipped.filled(0)
+    return data
 
-
-def crop_image(hdul, scale):
+def crop_image(data, header, scale):
     """
     Crop the image in the given HDUList around the centre point. If the
     original size is (W, H), the cropped size will be (scale * W, scale * H).
     """
     if scale < 0 or scale > 1:
         raise ValueError("scale must be in [0, 1]")
-    idx, data = get_data_index(hdul)
+    # idx, data = get_data_index(hdul)
     h, w = data.shape
     half_h = int(h * 0.5 * scale)
     half_w = int(w * 0.5 * scale)
@@ -212,7 +202,8 @@ def crop_image(hdul, scale):
     mid_y = int(h / 2)
     mid_x = int(w / 2)
 
-    hdul[idx].data = data[mid_y - half_h:mid_y + half_h, mid_x - half_w:mid_x + half_w]
-    new_h, new_w = hdul[idx].data.shape
-    hdul[idx].header['NAXIS1'] = new_w
-    hdul[idx].header['NAXIS2'] = new_h
+    data = data[mid_y - half_h:mid_y + half_h, mid_x - half_w:mid_x + half_w]
+    new_h, new_w = data.shape
+    header['NAXIS1'] = new_w
+    header['NAXIS2'] = new_h
+    return data
