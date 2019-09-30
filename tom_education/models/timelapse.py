@@ -2,6 +2,7 @@ from datetime import datetime
 from io import BytesIO
 import os.path
 import tempfile
+import logging
 
 from astroscrappy import detect_cosmics
 from astropy.io import fits
@@ -24,6 +25,7 @@ TIMELAPSE_MP4 = 'mp4'
 TIMELAPSE_WEBM = 'webm'
 TIMELAPSE_TAG = 'timelapse'
 
+logger = logging.getLogger(__name__)
 
 class TimelapsePipeline(PipelineProcess):
     """
@@ -65,7 +67,7 @@ class TimelapsePipeline(PipelineProcess):
             try:
                 self.write_timelapse(f, fmt, fps, image_size, **flags)
             except ValueError as ex:
-                print('warning: ValueError: {}'.format(ex))
+                logger.error('ValueError: {}'.format(ex))
                 raise AsyncError('Invalid parameters. Are all images the same size?')
 
         return [PipelineOutput(outfile, DataProduct, TIMELAPSE_TAG)]
@@ -106,7 +108,7 @@ class TimelapsePipeline(PipelineProcess):
                 for i, product in enumerate(self.sorted_frames()):
                     self.log(f'Processing frame {i + 1}/{num_frames}')
 
-                    fits_path = product.data.path
+                    fits_path = product.data.file
 
                     # Determine which modifiers to apply to the frame (if any).
                     # A modifier is a function that takes a HDUList as an
@@ -149,7 +151,7 @@ class TimelapsePipeline(PipelineProcess):
         the FITS header
         """
         def sort_key(product):
-            for hdu in fits.open(product.data.path):
+            for hdu in fits.open(product.data.file):
                 try:
                     dt_str = hdu.header[self.FITS_DATE_FIELD]
                 except KeyError:

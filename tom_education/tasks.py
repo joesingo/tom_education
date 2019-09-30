@@ -1,4 +1,5 @@
 import sys
+import logging
 
 import dramatiq
 from redis.exceptions import RedisError
@@ -7,6 +8,7 @@ from tom_education.models import (
     AsyncError, ASYNC_STATUS_FAILED, PipelineProcess
 )
 
+logger = logging.getLogger(__name__)
 
 def task(func, **kwargs):
     """
@@ -31,7 +33,7 @@ def send_task(task, process, *args):
     try:
         task.send(process.pk, *args)
     except RedisError as ex:
-        print('warning: failed to submit job: {}'.format(ex))
+        logger.error('failed to submit job: {}'.format(ex))
         process.status = ASYNC_STATUS_FAILED
         process.failure_message = 'Failed to submit job'
         process.save()
@@ -46,12 +48,12 @@ def run_pipeline(process_pk, cls_name):
     try:
         pipeline_cls = PipelineProcess.get_subclass(cls_name)
     except ImportError:
-        print('warning: pipeline \'{}\' not found'.format(cls_name), file=sys.stderr)
+        logger.error('pipeline \'{}\' not found'.format(cls_name), file=sys.stderr)
         return
     try:
         process = pipeline_cls.objects.get(pk=process_pk)
     except pipeline_cls.DoesNotExist:
-        print('warning: could not find {} with PK {}'.format(pipeline_cls.__name__, process_pk),
+        logger.error('could not find {} with PK {}'.format(pipeline_cls.__name__, process_pk),
               file=sys.stderr)
         return
     run_process(process)
@@ -64,19 +66,22 @@ def run_process(process):
 
     Note that this runs in the dramatiq worker processes.
     """
-    print("running process")
+    logger.info("running process")
     failure_message = None
     try:
         process.run()
     except AsyncError as ex:
         failure_message = str(ex)
+    except NotImplementedError as ex:
+        logger.error('S3 not configured correctly: {}'.format(ex))
+        failure_message = str(ex)
     except Exception as ex:
-        print('warning: unknown error occurred: {}'.format(ex))
+        logger.error('unknown error occurred: {}'.format(ex))
         failure_message = 'An unexpected error occurred'
 
     if failure_message is not None:
-        print('task failed: {}'.format(failure_message))
+        logger.error('task failed: {}'.format(failure_message))
         process.failure_message = failure_message
         process.status = ASYNC_STATUS_FAILED
         process.save()
-    print('process finished')
+    logger.error('process finished')

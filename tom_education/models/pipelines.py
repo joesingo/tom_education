@@ -49,7 +49,7 @@ class PipelineProcess(AsyncProcess):
                 try:
                     assert_valid_suffix(os.path.basename(filename), self.allowed_suffixes)
                 except AssertionError as ex:
-                    raise AsyncError(str(ex))
+                    raise AsyncError("Error running pipeline {}".format(ex))
 
         with tempfile.TemporaryDirectory() as tmpdir_name:
             tmpdir = Path(tmpdir_name)
