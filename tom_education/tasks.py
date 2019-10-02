@@ -75,6 +75,9 @@ def run_process(process):
     except NotImplementedError as ex:
         logger.error('S3 not configured correctly: {}'.format(ex))
         failure_message = str(ex)
+    except TypeError as ex:
+        logger.error('Unexpected input type: {}'.format(ex))
+        failure_message = 'Unexpected input type'
     except Exception as ex:
         logger.error('unknown error occurred: {}'.format(ex))
         failure_message = 'An unexpected error occurred'
