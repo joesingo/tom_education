@@ -17,7 +17,7 @@ setup(
     maintainer_email='egomez@lco.global',
     install_requires=[
         'astroscrappy==1.0.8',
-        'tomtoolkit==1.0.0',
+        'tomtoolkit==1.1.0',
         'numpy',
         'imageio-ffmpeg==0.3.0',
         'imageio==2.5.0',
