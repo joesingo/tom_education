@@ -19,3 +19,7 @@ install:
   - ./manage.py tom_education_setup
 script:
   - ./manage.py test tom_education
+branches:
+  only:
+  - master
+  - release
