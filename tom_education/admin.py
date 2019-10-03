@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib import admin
 
-from tom_education.models import ObservationTemplate
+from tom_education.models import ObservationTemplate, PipelineProcess
 from tom_dataproducts.models import DataProduct
 
 
@@ -21,3 +21,5 @@ class DataProductAdminForm(forms.ModelForm):
 
 class DataProductAdmin(admin.ModelAdmin):
     form = DataProductAdminForm
+
+admin.site.register(PipelineProcess)

@@ -109,12 +109,16 @@ class TimelapsePipeline(PipelineProcess):
                     self.log(f'Processing frame {i + 1}/{num_frames}')
 
                     fits_path = product.data.file
-                    if flags.get('normalise_background'):
+                    if flags.get('normalise_background') or flags.get('crop'):
+                        hdul = fits.open(fits_path)
+                        hdul.close()
+                        data, header = fits.getdata(fits_path, 1, header=True)
                         try:
-                            hdul = fits.open(fits_path)
-                            hdul.close()
-                            hdu, header = fits.getdata(fits_path, 1, header=True)
-                            data, _ = normalise_background(hdu, header)
+                            if flags.get('crop'):
+                                scale = self.get_settings().get('crop_scale', 0.5)
+                                data, header = crop_image(data, header, scale)
+                            if flags.get('normalise_background'):
+                                data = normalise_background(data, header)
 
                         except ValueError as ex:
                             raise AsyncError(
@@ -182,7 +186,7 @@ def normalise_background(data, header):
     # Perform sigma clipping to normalise background brightness
     clipped = astropy.stats.sigma_clip(imdata, sigma=3, maxiters=10)
     data -= clipped.filled(0)
-    return data, header
+    return data
 
 def crop_image(data, header, scale):
     """
@@ -203,4 +207,4 @@ def crop_image(data, header, scale):
     new_h, new_w = data.shape
     header['NAXIS1'] = new_w
     header['NAXIS2'] = new_h
-    return data
+    return data, header

@@ -432,6 +432,11 @@ class TargetDataViewTestCase(DataProductTestCase):
         })
 
 
+def mock_fits_to_jpg(inputfiles, outputfile, **kwargs):
+    f = open(outputfile, 'wb')
+    f.close()
+    return True
+
 @override_settings(TOM_EDUCATION_TIMELAPSE_SETTINGS={
     'format': 'gif', 'fps': 10, 'size': 500, 'crop_scale': 0.5
 })
@@ -709,7 +714,9 @@ class TimelapseTestCase(DataProductTestCase):
         self.assertEqual(DataProductGroup.objects.count(), 1)
 
     @patch('tom_education.models.timelapse.normalise_background')
-    def test_background_normalisation(self, norm_mock):
+    @patch('tom_education.models.timelapse.imageio.imread', return_value=np.array([[0,0,0],[0,10,0]]))
+    @patch('tom_education.models.timelapse.fits_to_jpg', mock_fits_to_jpg)
+    def test_background_normalisation(self, im_mock, norm_mock):
         ## TODO: Don't really understand how this test avoid exception in fit2image
         pipeline = self.create_timelapse_pipeline(self.prods)
 
@@ -725,7 +732,7 @@ class TimelapseTestCase(DataProductTestCase):
         self.assertEqual(norm_mock.call_count, len(self.prods))
 
     @override_settings(TOM_EDUCATION_TIMELAPSE_SETTINGS={'crop_scale': 0.8})
-    def _test_timelapse_cropping(self):
+    def test_timelapse_cropping(self):
         pipeline = self.create_timelapse_pipeline(self.prods)
 
         buf = BytesIO()
@@ -770,7 +777,7 @@ class TimelapseTestCase(DataProductTestCase):
         # cropped image with
         K2 = np.max(hdu)
 
-        hdu = crop_image(hdu, hdr, scale=0.5)
+        hdu,hdr = crop_image(hdu, hdr, scale=0.5)
 
         # Note that size of cropped image is not exactly half; it is off by one
         # due to rounding

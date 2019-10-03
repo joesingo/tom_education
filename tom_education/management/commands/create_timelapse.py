@@ -53,5 +53,5 @@ class Command(BaseCommand):
             self.stderr.write(f'Failed to create timelapse: {ex}')
         else:
             prod = pipe.group.dataproduct_set.first()
-            msg = f'Created timelapse {prod.data.path}'
+            msg = f'Created timelapse {prod.data.file}'
             self.stdout.write(self.style.SUCCESS(msg))
