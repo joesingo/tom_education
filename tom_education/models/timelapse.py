@@ -31,7 +31,7 @@ class TimelapsePipeline(PipelineProcess):
     """
     Pipeline process to make a timelapse from a sequence of FITS images
     """
-    short_name = 'timelapse'
+    short_name = 'tl'
     allowed_suffixes = ['.fits', '.fz']
     flags = {
         'normalise_background': {
