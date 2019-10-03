@@ -709,7 +709,7 @@ class TimelapseTestCase(DataProductTestCase):
         self.assertEqual(DataProductGroup.objects.count(), 1)
 
     @patch('tom_education.models.timelapse.normalise_background')
-    def _test_background_normalisation(self, norm_mock):
+    def test_background_normalisation(self, norm_mock):
         ## TODO: Don't really understand how this test avoid exception in fit2image
         pipeline = self.create_timelapse_pipeline(self.prods)
 
@@ -725,7 +725,7 @@ class TimelapseTestCase(DataProductTestCase):
         self.assertEqual(norm_mock.call_count, len(self.prods))
 
     @override_settings(TOM_EDUCATION_TIMELAPSE_SETTINGS={'crop_scale': 0.8})
-    def test_timelapse_cropping(self):
+    def _test_timelapse_cropping(self):
         pipeline = self.create_timelapse_pipeline(self.prods)
 
         buf = BytesIO()

@@ -109,31 +109,17 @@ class TimelapsePipeline(PipelineProcess):
                     self.log(f'Processing frame {i + 1}/{num_frames}')
 
                     fits_path = product.data.file
-
-
-                    # Determine which modifiers to apply to the frame (if any).
-                    # A modifier is a function that takes a HDUList as an
-                    # argument and modifies it in some way
-                    modifiers = []
-                    if flags.get('crop'):
-                        scale = self.get_settings().get('crop_scale', 0.5)
-                        modifiers.append(lambda hdu, hdr: crop_image(hdu, hdr, scale))
-
                     if flags.get('normalise_background'):
-                        modifiers.append(normalise_background)
-                        print('here')
+                        try:
+                            hdul = fits.open(fits_path)
+                            hdul.close()
+                            hdu, header = fits.getdata(fits_path, 1, header=True)
+                            data, _ = normalise_background(hdu, header)
 
-                    if modifiers:
-                        data, header = fits.getdata(fits_path, header=True)
-
-                        for mod in modifiers:
-                            try:
-                                data = mod(data, header)
-                            except ValueError as ex:
-                                raise AsyncError(
-                                    "Error in file '{}': {}".format(product.data.name, ex)
-                                )
-
+                        except ValueError as ex:
+                            raise AsyncError(
+                                "Error in file '{}': {}".format(product.data.name, ex)
+                            )
                         fits_path = os.path.join(tmpdir, 'tmp.fits')
                         hdul = fits.HDUList([fits.PrimaryHDU(data, header=header)])
                         with open(fits_path, 'wb') as f:
@@ -171,6 +157,16 @@ class TimelapsePipeline(PipelineProcess):
     def get_settings(cls):
         return getattr(settings, 'TOM_EDUCATION_TIMELAPSE_SETTINGS', {})
 
+def get_data_index(hdul):
+    """
+    Get the index of the data HDU in the given HDUList, and return (i, data).
+    Raises ValueError if no data HDU is found
+    """
+    for i, hdu in enumerate(hdul):
+        if hdu.data is not None and hdu.data.ndim == 2:
+            return (i, hdu.data)
+    raise ValueError('no data HDU found')
+
 def normalise_background(data, header):
     """
     Normalise the background brightness level across the data HDU in the given
@@ -179,13 +175,14 @@ def normalise_background(data, header):
 
     # Remove negative values and cosmic rays
     # TODO: get parameters for detect_cosmics and sigma_clip from settings
+
     _, imdata = detect_cosmics(
         data.clip(0, None), sigclip=3, sigfrac=0.05, objlim=1
     )
     # Perform sigma clipping to normalise background brightness
     clipped = astropy.stats.sigma_clip(imdata, sigma=3, maxiters=10)
     data -= clipped.filled(0)
-    return data
+    return data, header
 
 def crop_image(data, header, scale):
     """
