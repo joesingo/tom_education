@@ -110,7 +110,6 @@ class TimelapsePipeline(PipelineProcess):
 
                     fits_path = product.data.file
 
-
                     # Determine which modifiers to apply to the frame (if any).
                     # A modifier is a function that takes a HDUList as an
                     # argument and modifies it in some way
@@ -121,7 +120,6 @@ class TimelapsePipeline(PipelineProcess):
 
                     if flags.get('normalise_background'):
                         modifiers.append(normalise_background)
-                        print('here')
 
                     if modifiers:
                         data, header = fits.getdata(fits_path, header=True)
