@@ -5,7 +5,11 @@
 <div class="row">
 {% for p in products %}
 <div class="col p-2">
+  {% if p.thumbnail %}
+  <img src="{{p.thumbnail.url}}" />
+  {% else %}
   <img src="{{p.get_preview}}" />
+  {% endif %}
   {% with p.extra_data|dataproduct_extrainfo as info %}
   {% if info %}
   <span class="datap_info info-{{info.siteid}}">
