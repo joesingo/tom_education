@@ -110,9 +110,9 @@ class TimelapsePipeline(PipelineProcess):
 
                     fits_path = product.data.file
                     if flags.get('normalise_background') or flags.get('crop'):
-                        hdul = fits.open(fits_path)
-                        hdul.close()
-                        data, header = fits.getdata(fits_path, 1, header=True)
+                        fits_path.open()
+                        data, header = fits.getdata(fits_path, header=True)
+                        fits_path.close()
                         try:
                             if flags.get('crop'):
                                 scale = self.get_settings().get('crop_scale', 0.5)
@@ -144,11 +144,13 @@ class TimelapsePipeline(PipelineProcess):
         the FITS header
         """
         def sort_key(product):
+            product.data.file.open()
             for hdu in fits.open(product.data.file):
                 try:
                     dt_str = hdu.header[self.FITS_DATE_FIELD]
                 except KeyError:
                     continue
+                product.data.file.close()
                 return datetime.fromisoformat(dt_str)
             raise AsyncError(
                 "Error in file '{}': could not find observation date in FITS header '{}'"

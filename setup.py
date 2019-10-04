@@ -7,7 +7,7 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='tom_education',
-    version='1.1.1',
+    version='1.1.2',
     description='TOM toolkit plugin for educational projects',
     long_description=long_description,
     long_description_content_type='text/markdown',
@@ -28,6 +28,8 @@ setup(
         'watchdog-gevent==0.1.1',
         'djangorestframework==3.10.1',
         'fits2image @ git+https://github.com/LCOGT/fits2image.git@file-object-feature#egg=fits2image'
+        'django-storages',
+        'boto3',
     ],
     packages=find_packages(),
     include_package_data=True,

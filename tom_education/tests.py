@@ -524,7 +524,7 @@ class TimelapseTestCase(DataProductTestCase):
         self.assertEqual(dp.target, self.target)
         self.assertEqual(dp.observation_record, None)
         self.assertEqual(dp.tag, TIMELAPSE_TAG)
-        expected_filename = 'timelapse_{}_20190102030405_t.gif'.format(self.target.pk)
+        expected_filename = 'tl_{}_20190102030405_t.gif'.format(self.target.pk)
         self.assertEqual(dp.product_id, expected_filename)
         self.assertTrue(os.path.basename(dp.data.name), expected_filename)
 
