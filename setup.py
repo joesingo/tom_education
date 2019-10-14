@@ -27,7 +27,7 @@ setup(
         'watchdog==0.9.0',
         'watchdog-gevent==0.1.1',
         'djangorestframework==3.10.1',
-        'fits2image==0.4.2'
+        'fits2image==0.4.2',
         'django-storages',
         'boto3',
     ],
