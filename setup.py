@@ -27,7 +27,7 @@ setup(
         'watchdog==0.9.0',
         'watchdog-gevent==0.1.1',
         'djangorestframework==3.10.1',
-        'fits2image @ git+https://github.com/LCOGT/fits2image.git@file-object-feature#egg=fits2image'
+        'fits2image==0.4.2'
         'django-storages',
         'boto3',
     ],
