@@ -214,8 +214,7 @@ class EducationLCOFacility(LCOFacility):
                 dfile = ContentFile(product_data)
                 dp.data.save(product['filename'], dfile)
                 dp.save()
-                dp.get_preview()
             if AUTO_THUMBNAILS:
-                create_image_dataproduct(dp)
+                dp.get_preview()
             final_products.append(dp)
         return final_products

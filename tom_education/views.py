@@ -356,7 +356,9 @@ class TargetDetailApiView(RetrieveAPIView):
     def get_object(self):
         target = super().get_object()
         tl_pipelines = TimelapsePipeline.objects.filter(
-            target=target, group__dataproduct__target__isnull=False, status=ASYNC_STATUS_CREATED
+            target=target,
+            group__dataproduct__target__isnull=False,
+            status=ASYNC_STATUS_CREATED
         ).order_by('-terminal_timestamp')
         return TargetDetailApiInfo(target=target, timelapses=tl_pipelines)
 
