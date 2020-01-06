@@ -4,14 +4,15 @@ import os.path
 import tempfile
 import logging
 
-from astroscrappy import detect_cosmics
 from astropy.io import fits
-import astropy.stats
+from astroscrappy import detect_cosmics
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.files import File
 from django.db import models
+from dramatiq.middleware.time_limit import TimeLimitExceeded
 from fits2image.conversions import fits_to_jpg
+import astropy.stats
 import imageio
 
 from tom_dataproducts.models import DataProduct
@@ -23,7 +24,6 @@ from tom_education.utils import assert_valid_suffix
 TIMELAPSE_GIF = 'gif'
 TIMELAPSE_MP4 = 'mp4'
 TIMELAPSE_WEBM = 'webm'
-TIMELAPSE_TAG = 'timelapse'
 
 logger = logging.getLogger(__name__)
 
@@ -69,8 +69,12 @@ class TimelapsePipeline(PipelineProcess):
             except ValueError as ex:
                 logger.error('ValueError: {}'.format(ex))
                 raise AsyncError('Invalid parameters. Are all images the same size?')
+            except TimeLimitExceeded:
+                raise AsyncError("Timelapse took longer than 10 mins to create")
+            except PipelineProcess.DoesNotExist:
+                raise AsyncError("Timelapse record has been deleted")
 
-        return [PipelineOutput(outfile, DataProduct, TIMELAPSE_TAG)]
+        return [PipelineOutput(outfile, DataProduct, settings.DATA_PRODUCT_TYPES['timelapse'][0])]
 
     def write_timelapse(self, outfile, fmt=TIMELAPSE_GIF, fps=10,
                         image_size=500, **flags):

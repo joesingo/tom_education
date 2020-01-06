@@ -64,10 +64,10 @@ def dataproduct_thumbs_for_target(target):
 
 @register.inclusion_tag('tom_dataproducts/partials/dataproduct_other_for_target.html')
 def dataproduct_other_for_target(target):
-    timelapses = target.dataproduct_set.filter(tag='timelapse')
+    timelapses = target.dataproduct_set.filter(data_product_type='timelapse')
     return {
         'timelapse': timelapses.latest() if timelapses else None,
-        'photometry': target.dataproduct_set.filter(tag='photometry'),
+        'photometry': target.dataproduct_set.filter(data_product_type='photometry'),
         'target': target
     }
 

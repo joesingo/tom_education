@@ -15,7 +15,7 @@ class DataProductAdminForm(forms.ModelForm):
         model = DataProduct
         fields = '__all__'
         widgets = {
-            'tag': forms.Textarea(attrs={'cols': 98})
+            'data_product_type': forms.Textarea(attrs={'cols': 98})
         }
 
 

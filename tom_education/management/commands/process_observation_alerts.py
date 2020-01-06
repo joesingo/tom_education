@@ -5,7 +5,7 @@ from tom_dataproducts.models import DataProduct
 from tom_observations.facility import get_service_class
 
 from tom_education.constants import RAW_FILE_EXTENSION
-from tom_education.models import ObservationAlert, TimelapsePipeline, TIMELAPSE_TAG
+from tom_education.models import ObservationAlert, TimelapsePipeline
 
 
 class Command(BaseCommand):
@@ -57,7 +57,7 @@ class Command(BaseCommand):
             # Delete old timelapses
             # TODO: control deletion from settings.py
             timelapses = (DataProduct.objects
-                                     .filter(target=target, tag=TIMELAPSE_TAG)
+                                     .filter(target=target, data_product_type=settings.DATA_PRODUCT_TYPES['timelapse'][0])
                                      .exclude(pk=new_tl.pk)
                                      .all())
             for tl in timelapses:

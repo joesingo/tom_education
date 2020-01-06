@@ -23,8 +23,8 @@ class InvalidPipelineError(Exception):
     """
 
 
-PipelineOutput = namedtuple('PipelineOutput', ['path', 'output_type', 'tag'],
-                            defaults=('',))  # tag is optional
+PipelineOutput = namedtuple('PipelineOutput', ['path', 'output_type', 'data_product_type'],
+                            defaults=('',))  # data_product_type is optional
 
 
 class PipelineProcess(AsyncProcess):
@@ -64,18 +64,18 @@ class PipelineProcess(AsyncProcess):
                 if not isinstance(output, PipelineOutput):
                     output = PipelineOutput(*output)
 
-                path, output_type, tag = output
+                path, output_type, data_product_type = output
                 identifier = f'{self.identifier}_{path.name}'
 
                 if output_type == DataProduct:
-                    prod = DataProduct.objects.create(product_id=identifier, target=self.target, tag=tag)
+                    prod = DataProduct.objects.create(product_id=identifier, target=self.target, data_product_type=data_product_type)
                     prod.data.save(identifier, ContentFile(path.read_bytes()))
                     new_dps.append(prod)
 
                 elif output_type == ReducedDatum:
                     ReducedDatum.objects.create(
                         target=self.target,
-                        data_type=tag,
+                        data_type=data_product_type,
                         source_name=identifier,
                         timestamp=datetime.now(),
                         value=path.read_text()
