@@ -80,7 +80,7 @@ def run_process(process):
         failure_message = 'Unexpected input type'
     except Exception as ex:
         logger.error('unknown error occurred: {}'.format(ex))
-        failure_message = 'An unexpected error occurred'
+        failure_message = f'An unexpected error occurred {ex}'
 
     if failure_message is not None:
         logger.error('task failed: {}'.format(failure_message))

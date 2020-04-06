@@ -94,7 +94,7 @@ class TimelapsePipeline(PipelineProcess):
         # call fails. We need to specify the output format explicitly instead
         # in this case
         if fmt in (TIMELAPSE_MP4, TIMELAPSE_WEBM):
-            writer_kwargs['output_params'] = ['-f', fmt]
+            writer_kwargs['output_params'] = ['-f', fmt,'-crf','30','-lossless','1']
 
             # Need to specify codec for WebM
             if fmt == TIMELAPSE_WEBM:
