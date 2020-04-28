@@ -1,5 +1,5 @@
 {% extends 'tom_common/base.html' %}
-{% load comments bootstrap4 tom_common_extras targets_extras observation_extras dataproduct_extras static cache tom_education_extras %}
+{% load comments bootstrap4 tom_common_extras targets_extras observation_extras dataproduct_extras  tom_education_plots static cache tom_education_extras %}
 {% block title %}Target {{ object.name }}{% endblock %}
 {% block additional_css %}
 <link rel="stylesheet" href="{% static 'tom_targets/css/main.css' %}">
@@ -64,7 +64,8 @@
       </div>
     </div>
     {% dataproduct_other_for_target object %}
-    {% dataproduct_thumbs_for_target object %}
+    {% targets_reduceddata targetid=object.pk %}
+
   </div>
 
   <div class="col-md-4">

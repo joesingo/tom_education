@@ -3,7 +3,7 @@
 
 <div class="row">
 {% if timelapse %}
-<div class="col p-2">
+<div class="col">
   {% if '.gif' in timelapse.data.url %}
   <img src="{{timelapse.data.url}}" class="img-fluid" />
   {% else %}
@@ -15,12 +15,6 @@
   </div>
   {% endif %}
   <p>Timelapse of {{timelapse.timelapsedataproduct.frames.all.count}} frames, update {{timelapse.modified|timesince}} ago</p>
-</div>
-{% endif %}
-{% if photometry %}
-<h2>Light Curve</h2>
-<div class="col p-2">
-  <img src="" />
 </div>
 {% endif %}
 </div>

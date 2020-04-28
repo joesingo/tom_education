@@ -12,6 +12,8 @@ from django.core.files.base import ContentFile
 from django.db import models
 from django.utils.module_loading import import_string
 from tom_dataproducts.models import DataProduct, ReducedDatum, DataProductGroup
+from astropy.time import Time
+
 
 from tom_education.models.async_process import AsyncError, AsyncProcess, ASYNC_STATUS_CREATED
 from tom_education.utils import assert_valid_suffix
@@ -23,7 +25,7 @@ class InvalidPipelineError(Exception):
     """
 
 
-PipelineOutput = namedtuple('PipelineOutput', ['path', 'output_type', 'data_product_type'],
+PipelineOutput = namedtuple('PipelineOutput', ['path', 'output_type', 'data_product_type','data'],
                             defaults=('',))  # data_product_type is optional
 
 
@@ -64,21 +66,27 @@ class PipelineProcess(AsyncProcess):
                 if not isinstance(output, PipelineOutput):
                     output = PipelineOutput(*output)
 
-                path, output_type, data_product_type = output
-                identifier = f'{self.identifier}_{path.name}'
+                path, output_type, data_product_type, data = output
 
                 if output_type == DataProduct:
+                    identifier = f'{self.identifier}_{path.name}'
                     prod = DataProduct.objects.create(product_id=identifier, target=self.target, data_product_type=data_product_type)
                     prod.data.save(identifier, ContentFile(path.read_bytes()))
                     new_dps.append(prod)
 
                 elif output_type == ReducedDatum:
+                    identifier = f'{self.identifier}_{data[0]:.0f}'
+                    phot_data =  {
+                          'magnitude': data[1],
+                          'error': data[2]
+                        }
+                    t = Time(data[0], format='mjd', scale='utc')
                     ReducedDatum.objects.create(
                         target=self.target,
                         data_type=data_product_type,
                         source_name=identifier,
-                        timestamp=datetime.now(),
-                        value=path.read_text()
+                        timestamp=t.to_value('datetime') ,
+                        value=json.dumps(phot_data)
                     )
 
                 else:

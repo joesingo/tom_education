@@ -7,7 +7,7 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='tom_education',
-    version='1.1.4',
+    version='1.1.5',
     description='TOM toolkit plugin for educational projects',
     long_description=long_description,
     long_description_content_type='text/markdown',
@@ -16,9 +16,9 @@ setup(
     maintainer='Edward Gomez',
     maintainer_email='egomez@lco.global',
     install_requires=[
-        'astropy==3.2.2',
+        'astropy==4.0.1',
         'astroscrappy==1.0.8',
-        'tomtoolkit==1.2.4',
+        'tomtoolkit==1.4.0',
         'numpy==1.17.2',
         'imageio-ffmpeg==0.3.0',
         'imageio==2.5.0',

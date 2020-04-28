@@ -1,5 +1,7 @@
 import json
 import operator
+import sys
+import logging
 
 import requests
 from django import forms
@@ -14,6 +16,7 @@ try:
 except AttributeError:
     AUTO_THUMBNAILS = False
 
+logger = logging.getLogger(__name__)
 
 class EducationLCOForm(LCOImagingObservationForm):
     EXPOSURE_FIELDS = {
@@ -197,12 +200,15 @@ class EducationLCOFacility(LCOFacility):
             })
         return products
 
-    def save_data_products(self, observation_record, product_id=None):
+    def save_data_products(self, observation_record, product_id=None, reduced=True):
         from tom_dataproducts.models import DataProduct
         from tom_dataproducts.utils import create_image_dataproduct
         final_products = []
         products = self.data_products(observation_record.observation_id, product_id)
+        logger.debug(f'Saving {len(products)} files')
         for product in products:
+            if reduced and ('e91' not in product['filename']):
+                continue
             dp, created = DataProduct.objects.get_or_create(
                 product_id=product['id'],
                 target=observation_record.target,
@@ -214,7 +220,8 @@ class EducationLCOFacility(LCOFacility):
                 dfile = ContentFile(product_data)
                 dp.data.save(product['filename'], dfile)
                 dp.save()
-                dp.get_preview()
+                logger.debug(f"Saved {product['filename']}")
+                # dp.get_preview()
             if AUTO_THUMBNAILS:
                 create_image_dataproduct(dp)
             final_products.append(dp)

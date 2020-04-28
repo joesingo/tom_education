@@ -6,6 +6,7 @@
 {% endblock %}
 {% block content %}
 <h2>&crarr;&nbsp;<a href="{% url 'tom_education:target_detail' object.pk %}">{{ object.name }}</a>: Data View
+
   {% if object.extra_fields.active %}
   <span class="badge badge-pill badge-info">Active</span>
   {% else %}
@@ -13,7 +14,7 @@
   {% endif %}
   </h2>
 
-  {% dataproduct_list_for_target object %}
+  {% dataproduct_list_for_target target=object %}
 
 
 {% endblock %}

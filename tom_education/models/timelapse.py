@@ -74,7 +74,7 @@ class TimelapsePipeline(PipelineProcess):
             except PipelineProcess.DoesNotExist:
                 raise AsyncError("Timelapse record has been deleted")
 
-        return [PipelineOutput(outfile, DataProduct, settings.DATA_PRODUCT_TYPES['timelapse'][0])]
+        return [PipelineOutput(outfile, DataProduct, settings.DATA_PRODUCT_TYPES['timelapse'][0], None)]
 
     def write_timelapse(self, outfile, fmt=TIMELAPSE_GIF, fps=10,
                         image_size=500, **flags):

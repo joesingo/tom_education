@@ -8,6 +8,6 @@ def dataproduct_list_for_target(context, target):
     Override the product list for a target so that included template receives
     the whole current context
     """
-    target_ctx = dataproduct_extras.dataproduct_list_for_target(target)
+    target_ctx = dataproduct_extras.dataproduct_list_for_target(target=target, context=context)
     context.update(target_ctx)
     return context

@@ -5,14 +5,13 @@
 <link rel="stylesheet" href="{% static 'tom_observations/css/main.css' %}">
 {% endblock %}
 {% block content %}
-<h2>&crarr;&nbsp;<a href="{% url 'tom_education:target_detail' object.target.pk %}"> {{ object.target.name }}</a></h2>
+<h2>Observation Record for: <a href="{% url 'tom_education:target_detail' object.target.pk %}"> {{ object.target.name }}</a></h2>
 <div class="row">
   <div class="col-md-8">
     <a class="btn btn-success" href="{{ object.url }}">View at observatory »</a>
     <p><strong>Created:</strong> {{ object.created }} <strong>Modified:</strong> {{ object.modified }}</p>
     <p><strong>Status:</strong> {{ object.status }}</p>
     <p></p>
-    {% include 'tom_dataproducts/upload_dataproduct.html' %}
 
     <h4>Saved Data Products</h4>
     <form method="POST" action="{% url 'tom_dataproducts:group-data' %}">

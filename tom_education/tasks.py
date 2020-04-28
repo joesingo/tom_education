@@ -10,15 +10,17 @@ from tom_education.models import (
 
 logger = logging.getLogger(__name__)
 
-def task(func, **kwargs):
+def task(**kwargs):
     """
     Decorator that wraps dramatiq.actor, but runs tasks synchronously during
     tests
     """
-    if 'test' not in sys.argv:
-        return dramatiq.actor(func, **kwargs)
-    func.send = func
-    return func
+    def wrap(func):
+        if 'test' not in sys.argv:
+            return dramatiq.actor(func, **kwargs)
+        func.send = func
+        return func
+    return wrap
 
 
 def send_task(task, process, *args):
@@ -39,7 +41,7 @@ def send_task(task, process, *args):
         process.save()
 
 
-@task
+@task(time_limit=3600_000, max_retries=0)
 def run_pipeline(process_pk, cls_name):
     """
     Task to run a PipelineProcess sub-class. `cls_name` is the name of the
