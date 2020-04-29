@@ -109,6 +109,7 @@ class TimelapsePipeline(PipelineProcess):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             with imageio.get_writer(outfile, **writer_kwargs) as writer:
+                self.log('Sorting frames')
                 for i, product in enumerate(self.sorted_frames()):
                     self.log(f'Processing frame {i + 1}/{num_frames}')
 

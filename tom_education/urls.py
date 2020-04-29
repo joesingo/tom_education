@@ -13,6 +13,7 @@ from tom_education.views import (
     PipelineProcessDetailView,
     TemplatedObservationCreateView,
     TargetDetailApiView,
+    photometry_to_csv,
 )
 
 app_name = "tom_education"
@@ -26,6 +27,7 @@ urlpatterns = [
 
     # New views
     path('targets/<int:pk>/data/', ActionableTargetDetailView.as_view(), name='target_data'),
+    path('targets/<int:pk>/data/download/',photometry_to_csv, name='photometry_download'),
     path('pipeline/<pk>', PipelineProcessDetailView.as_view(), name='pipeline_detail'),
     path('gallery/', GalleryView.as_view(), name='gallery'),
     path('dataproducts/deletemultiple/', DataProductDeleteMultipleView.as_view(), name='delete_dataproducts'),

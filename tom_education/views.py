@@ -2,12 +2,14 @@ from dataclasses import dataclass
 from datetime import datetime
 import json
 from typing import Iterable
+import csv
+import logging
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
 from django.db.utils import IntegrityError
-from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseRedirect, Http404
+from django.http import JsonResponse, HttpResponseBadRequest, HttpResponseRedirect, Http404, HttpResponse
 from django.shortcuts import redirect, reverse
 from django.utils.http import urlencode
 from django.views.generic import FormView, TemplateView
@@ -44,6 +46,7 @@ from tom_education.serializers import (
 )
 from tom_education.tasks import run_pipeline, send_task
 
+logger = logging.getLogger(__name__)
 
 class TemplatedObservationCreateView(ObservationCreateView):
     supported_facilities = ('LCO',)
@@ -340,6 +343,7 @@ class TargetDetailApiInfo:
     """
     target: Target
     timelapses: Iterable[TimelapsePipeline]
+    data: Target
 
 
 class TargetDetailApiView(RetrieveAPIView):
@@ -356,9 +360,11 @@ class TargetDetailApiView(RetrieveAPIView):
     def get_object(self):
         target = super().get_object()
         tl_pipelines = TimelapsePipeline.objects.filter(
-            target=target, group__dataproduct__target__isnull=False, status=ASYNC_STATUS_CREATED
+            target=target, group__dataproduct__target__isnull=False,
+            status=ASYNC_STATUS_CREATED,
+            process_type='TimelapsePipeline'
         ).order_by('-terminal_timestamp')
-        return TargetDetailApiInfo(target=target, timelapses=tl_pipelines)
+        return TargetDetailApiInfo(target=target, timelapses=tl_pipelines, data=target)
 
 
 class ObservationAlertApiCreateView(CreateAPIView):
@@ -477,3 +483,22 @@ class EducationTargetCreateView(NonSiderealFieldsMixin, TargetCreateView):
 class EducationTargetUpdateView(NonSiderealFieldsMixin, TargetUpdateView):
     def get_target_type(self):
         return self.object.type
+
+
+def photometry_to_csv(request, pk):
+    # Create the HttpResponse object with the appropriate CSV header.
+    target = Target.objects.get(pk=pk)
+    filename = target.name.replace(' ','_').replace('.','_')
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="{filename}.csv"'
+
+    rdata = ReducedDatum.objects.filter(target=target, data_type='photometry').order_by('timestamp')
+    writer = csv.writer(response)
+    for rdatum in rdata:
+        try:
+            vals = json.loads(rdatum.value)
+        except json.decoder.JSONDecodeError:
+            logger.warning(f'Could not parse {rdatum.value} of {target.name}')
+        writer.writerow([rdatum.timestamp.isoformat('T'), vals['magnitude'], vals['error']])
+
+    return response

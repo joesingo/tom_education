@@ -1,8 +1,10 @@
 import os.path
 
 from django.shortcuts import reverse
+from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 from tom_targets.models import Target
+from tom_dataproducts.models import DataProduct
 
 from tom_education.models import AsyncProcess, PipelineProcess
 
@@ -74,6 +76,23 @@ class TargetSerializer(serializers.ModelSerializer):
         model = Target
         fields = ['name', 'extra_fields']
 
+class PhotometrySerializer(serializers.Serializer):
+    """
+    Serializer for photometry data file URL and image
+    """
+    csv = serializers.SerializerMethodField()
+    plot = serializers.SerializerMethodField()
+
+    def get_csv(self, obj):
+        return reverse('tom_education:photometry_download', kwargs={'pk':obj.id})
+
+    def get_plot(self, obj):
+        try:
+            dp = DataProduct.objects.filter(target=obj, data_product_type='plot').latest('created')
+            return dp.data.url
+        except ObjectDoesNotExist:
+            return None
+
 
 class TimelapsePipelineSerializer(serializers.Serializer):
     """
@@ -113,6 +132,7 @@ class TargetDetailSerializer(serializers.Serializer):
     """
     target = TargetSerializer()
     timelapses = serializers.ListSerializer(child=TimelapsePipelineSerializer())
+    data = PhotometrySerializer()
 
 
 class ObservationAlertSerializer(serializers.Serializer):
