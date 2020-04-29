@@ -1,6 +1,8 @@
 import os.path
 
 from django.shortcuts import reverse
+from django.contrib.sites.shortcuts import get_current_site
+from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 from tom_targets.models import Target
@@ -84,7 +86,13 @@ class PhotometrySerializer(serializers.Serializer):
     plot = serializers.SerializerMethodField()
 
     def get_csv(self, obj):
-        return reverse('tom_education:photometry_download', kwargs={'pk':obj.id})
+        url = reverse('tom_education:photometry_download', kwargs={'pk':obj.id})
+        connection_type = 'https'
+        if settings.DEBUG:
+            connection_type = 'http'
+        request = self.context.get("request")
+        full_url = f"{connection_type}://{get_current_site(request)}{url}"
+        return full_url
 
     def get_plot(self, obj):
         try:
