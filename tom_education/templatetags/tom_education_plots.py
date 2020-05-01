@@ -1,6 +1,5 @@
 from plotly import offline
 import plotly.graph_objs as go
-import plotly.express as px
 from django import template
 import json
 from astropy.time import Time
