@@ -42,8 +42,10 @@ def target_request_history(target):
     if not records:
         return {'states': None}
     for record in records:
-        states[record.status] += 1.
-        records = target.observationrecord_set.all()
+        try:
+            states[record.status] += 1
+        except:
+            pass
     return {'states' : {k: round(v/records.count()*100) for k,v in states.items()}}
 
 @register.simple_tag
