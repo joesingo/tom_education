@@ -64,7 +64,10 @@ class TemplatedObservationCreateView(ObservationCreateView):
         return context
 
     def serialize_fields(self, form):
-        return json.dumps(form.cleaned_data)
+        # TODO: Removing groups which provides a QuerySet and we don't use anyway
+        cleanform = dict(form.cleaned_data)
+        del cleanform['groups']
+        return json.dumps(cleanform)
 
     def form_url(self):
         """

@@ -76,6 +76,9 @@
        <a href="{% url 'targets:detail' pk=target.id %}?update_status=True" title="Update status of observations for target" class="btn btn-outline-primary">Update Observations Status</a>
      </div>
     <h4>Observations</h4>
+
+    {% target_request_history object %}
+
     <table class="table table-striped">
   <thead><tr><th>Status</th><th>Scheduled</th></tr></thead>
   <tbody>

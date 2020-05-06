@@ -30,6 +30,11 @@ PipelineOutput = namedtuple('PipelineOutput', ['path', 'output_type', 'data_prod
 
 
 class PipelineProcess(AsyncProcess):
+    """
+    Pipeline must output ``DataProduct``s or ``ReducedDatum``. If ``ReducedDatum``
+    the output must be an iterator yielding a list or tuple, each row in the form:
+    [<MJD timestamp>, <photometry data>, <photometry error>, <associated input file>]
+    """
     short_name = 'pipeline'
     flags = None
     allowed_suffixes = None
@@ -81,13 +86,19 @@ class PipelineProcess(AsyncProcess):
                           'error': data[2]
                         }
                     t = Time(data[0], format='mjd', scale='utc')
-                    ReducedDatum.objects.create(
+                    try:
+                        dp = DataProduct.objects.get(data=data[3])
+                    except Exception as e:
+                        dp = None
+                    rd, created = ReducedDatum.objects.get_or_create(
                         target=self.target,
+                        data_product = dp,
                         data_type=data_product_type,
                         source_name=identifier,
                         timestamp=t.to_value('datetime') ,
-                        value=json.dumps(phot_data)
                     )
+                    rd.value = json.dumps(phot_data)
+                    rd.save()
 
                 else:
                     raise AsyncError(f"Invalid output type '{output_type}'")

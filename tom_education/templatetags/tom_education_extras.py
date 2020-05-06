@@ -31,6 +31,21 @@ def dataproduct_selection_buttons(context, show_group_selection=True):
     return context
 
 
+@register.inclusion_tag('tom_targets/partials/record_status.html')
+def target_request_history(target):
+    states = {
+        'COMPLETED' : 0,
+        'PENDING'   : 0,
+        'FAILED'    : 0,
+    }
+    records = target.observationrecord_set.all()
+    if not records:
+        return {'states': None}
+    for record in records:
+        states[record.status] += 1.
+        records = target.observationrecord_set.all()
+    return {'states' : {k: round(v/records.count()*100) for k,v in states.items()}}
+
 @register.simple_tag
 def loading_message():
     return 'Loading...'
