@@ -2,6 +2,7 @@ import json
 import operator
 import sys
 import logging
+import mimetypes
 
 import requests
 from django import forms
@@ -200,6 +201,25 @@ class EducationLCOFacility(LCOFacility):
             })
         return products
 
+    def find_data_product_type(self, filename):
+        FITS_MIMETYPES = ['image/fits', 'application/fits']
+        PLAINTEXT_MIMETYPES = ['text/plain', 'text/csv']
+        IMAGE_MIMETYPES = ['image/jpeg','image/png']
+
+        mimetypes.add_type('image/fits', '.fits')
+        mimetypes.add_type('image/fits', '.fz')
+        mimetypes.add_type('application/fits', '.fits')
+        mimetypes.add_type('application/fits', '.fz')
+
+        mimetype = mimetypes.guess_type(filename)[0]
+
+        if mimetype in FITS_MIMETYPES:
+            return 'fits_file'
+        elif mimetype in IMAGE_MIMETYPES:
+            return 'image_file'
+        else:
+            return ''
+
     def save_data_products(self, observation_record, product_id=None, reduced=True):
         from tom_dataproducts.models import DataProduct
         from tom_dataproducts.utils import create_image_dataproduct
@@ -227,22 +247,3 @@ class EducationLCOFacility(LCOFacility):
                 create_image_dataproduct(dp)
             final_products.append(dp)
         return final_products
-
-        def find_data_product_type(self, filename):
-            FITS_MIMETYPES = ['image/fits', 'application/fits']
-            PLAINTEXT_MIMETYPES = ['text/plain', 'text/csv']
-            IMAGE_MIMETYPES = ['image/jpeg','image/png']
-
-            mimetypes.add_type('image/fits', '.fits')
-            mimetypes.add_type('image/fits', '.fz')
-            mimetypes.add_type('application/fits', '.fits')
-            mimetypes.add_type('application/fits', '.fz')
-
-            mimetype = mimetypes.guess_type(filename)[0]
-
-            if mimetype in FITS_MIMETYPES:
-                return 'fits_file'
-            elif mimetype in IMAGE_MIMETYPES:
-                return 'image_file'
-            else:
-                return ''
